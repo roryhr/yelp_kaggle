@@ -1,7 +1,7 @@
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
 from PIL import Image
-import numpy as np
+import numpy as np  # 1.10.1
 import pandas as pd
 import glob
 import random
@@ -14,48 +14,13 @@ from keras.layers.core import Dense, Dropout, Activation, Flatten
 from keras.layers.convolutional import Convolution2D, MaxPooling2D
 from keras.optimizers import SGD
 
+from helper_functions import generate_test_df, preprocess_image, mean_f1_score
+
 # export THEANO_FLAGS=blas.ldflags=
 
 #Configuration 
-n_images = 100
+n_images = 500
 imsize   = 100  # Square images
-
-
-def preprocess_image(im,width=imsize,height=imsize):
-    ''' INPUT: PIL Image. OUTPUT: RGB PIL Image
-        OUTPUT: Rescaled image and crop
-    '''
-    
-#    im.thumbnail((300,300))   # Resize inplace to fit in 300x300
-    
-    
-#    if im.size < (width, height):
-#        print 'Image size is smaller than width and height'
-#        return im.crop((0,0,width,height))
-#            
-#            
-#    # Random crop
-#    x_left = np.random.randint(0, im.size[0]-width)
-#    y_top = np.random.randint(0, im.size[1]-height)
-#    
-#    return im.crop((x_left,y_top,x_left+width,y_top+height))
-    
-    return im.resize((width,height))
-
-
-def mean_f1_score(Y_pred, Y_true):
-    '''Y_pred int64 array size (n_samples, 9)'''
-    
-    tp = (((Y_pred == Y_true)) * (Y_pred == 1)).sum() # True positives
-    fp = (((Y_pred != Y_true)) * (Y_pred == 1)).sum() # False positives
-    # tp + fp == Y_pred.sum()
-    
-    fn = (((Y_pred != Y_true)) * (Y_pred == 0)).sum() 
-    
-    p = tp*1.0/(tp + fp)
-    r = tp*1.0/(tp + fn)
-    
-    return 2.0*p*r/(p + r)
     
 
 #%% Read in the images
@@ -102,7 +67,7 @@ train_df = pd.merge(train_df, photo_biz_ids_df, on='photo_id')
 train_labels_df = pd.read_csv('train.csv')
 # Column names: business_id, labels
 
-# DEBUG FILL NaNs with 0's
+# Work column-wise to encode the labels string into 9 new columns
 for i in '012345678':
     train_labels_df[i] = train_labels_df['labels'].str.contains(i) * 1
 
@@ -146,47 +111,53 @@ X_train_ind, X_test_ind, Y_train_ind, Y_test_ind = train_test_split(
                                                  test_size=0.1, random_state=4)
 
 #%% VGG-like covnet
+''' 
+Include BatchNormalization
+
+Final layer use sigmoid activation, binary_crossentropy loss
+'''
     
 model = Sequential()
 # input: 100x100 images with 3 channels -> (3, 100, 100) tensors.
 # this applies 32 convolution filters of size 3x3 each.
-model.add(Convolution2D(32, 3, 3, input_shape=(3, imsize, imsize))) # 32,3,3
+model.add(Convolution2D(16, 3, 3, input_shape=(3, imsize, imsize))) # 32,3,3
 model.add(Activation('relu'))
-#model.add(BatchNormalization(input_shape=(3,imsize, imsize)))
-model.add(Convolution2D(32, 3, 3))  #32
+model.add(BatchNormalization())
+model.add(Convolution2D(16, 3, 3))  #32
 model.add(Activation('relu'))
 model.add(MaxPooling2D(pool_size=(2, 2)))
 #model.add(Dropout(0.25))
 
-model.add(Convolution2D(64, 3, 3))   # 64, 3, 3
+model.add(Convolution2D(32, 3, 3))   # 64, 3, 3
+model.add(Activation('relu'))
+model.add(BatchNormalization())
+model.add(Convolution2D(32, 3, 3))
 model.add(Activation('relu'))
 #model.add(BatchNormalization())
-model.add(Convolution2D(64, 3, 3))
-model.add(Activation('relu'))
 model.add(MaxPooling2D(pool_size=(2, 2)))
 model.add(Dropout(0.25))
 
 model.add(Flatten())
 # Note: Keras does automatic shape inference.
-model.add(Dense(256))       # 256
-model.add(Activation('relu'))
-model.add(Dense(256))       # 256
+model.add(Dense(128))       # 256
 model.add(Activation('relu'))
 #model.add(BatchNormalization())
-model.add(Dropout(0.5))
+model.add(Dense(128))       # 256
+model.add(Activation('relu'))
+#model.add(Dropout(0.5))
 
 model.add(Dense(9))
-model.add(Activation('softmax'))
+model.add(Activation('sigmoid'))
 
 sgd = SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
-model.compile(loss='categorical_crossentropy', optimizer=sgd)
+model.compile(loss='binary_crossentropy', optimizer=sgd)
 
 
 #%% Fit model
 
 model.fit(tensor[X_train_ind],
           train_df.iloc[Y_train_ind,label_start:].values, 
-          batch_size=16, nb_epoch=1,
+          batch_size=32, nb_epoch=1,
           validation_data=(tensor[X_test_ind],
                            train_df.iloc[Y_test_ind,label_start:].values),
           show_accuracy=True, verbose=1)
@@ -201,8 +172,24 @@ model.fit(tensor[X_train_ind],
     Leader (1/17)       0.81090
 '''
 
-#model.evaluate(X_test, Y_test)
-print 'Mean F1 Score: %.2f' % mean_f1_score(model.predict(tensor[X_test_ind]), train_df.iloc[Y_test_ind,label_start:].values)
-    
-    
+# Threshold at 0.5 and convert to 0 or 1 
+X_test_prediction = (model.predict(tensor[X_test_ind]) > .5)*1
 
+
+print 'Mean F1 Score: %.2f' % mean_f1_score(X_test_prediction,
+                                            train_df.iloc[Y_test_ind,label_start:].values)
+    
+    
+#%% Save model as JSON
+#json_string = model.to_json()
+#open('my_model_architecture.json', 'w').write(json_string)
+#model.save_weights('my_model_weights.h5')  # requires h5py
+
+
+#%% Compile a Test DataFrame 
+
+test_df = generate_test_df(train_df, ['photo_id', 'business_id', 'labels'], 
+                           X_test_prediction, X_test_ind)
+
+
+    

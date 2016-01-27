@@ -1,3 +1,11 @@
+# Saved Models
+*.json
+*.h5
+
+# Data
 *.tgz
 train_photos
+test_photos
 *.csv
+
+*.pyc
