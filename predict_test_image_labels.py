@@ -11,7 +11,7 @@ from keras.models import Sequential
 from keras.models import model_from_json
 
 
-from helper_functions import generate_test_df, preprocess_image, mean_f1_score
+from helper_functions import generate_test_df, preprocess_image
 
 # export THEANO_FLAGS=blas.ldflags=
 
@@ -23,7 +23,7 @@ imsize
 
 
 #Configuration 
-n_images = 500
+n_images = 20000
 imsize   = 100  # Square images
     
 
@@ -84,28 +84,31 @@ test_df.drop('image', axis=1, inplace=True)
 
 
 #%% Final processing and setup
-#im_mean = tensor.mean()
+im_mean = tensor.mean()
 tensor -= im_mean       # Subtract the mean
 
 
 #%% Load model reconstruction from JSON:
 
-# elsewhere...
 model = model_from_json(open('my_model_architecture.json').read())
 model.load_weights('my_model_weights.h5')
 
 
-
+#%% 
 # Threshold at 0.5 and convert to 0 or 1
 
 # model.predict_classes() -- use with class_mode = 'binary'
-X_test_prediction = (model.predict(tensor[X_test_ind]) > .5)*1
+X_test_prediction = (model.predict(tensor) > .5)*1
 
 
 #%% Compile a Test DataFrame 
 
-test_df = generate_test_df(test_df, ['photo_id', 'business_id', 'labels'], 
-                           X_test_prediction, X_test_ind)
+test_df = generate_test_df(test_df, ['photo_id', 'business_id'], 
+                           X_test_prediction, np.arange(n_images))
 
+#%% Generate a submission
 
+test_df[['business_id', 'predicted_labels']].to_csv('csv_testing_yo.csv', 
+                                                    index=False,
+                                                    header=['business_id','labels'])
 

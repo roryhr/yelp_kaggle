@@ -7,7 +7,7 @@ import glob
 import random
 import time
 from sklearn.cross_validation import train_test_split
-
+from keras.regularizers import l2
 from keras.layers.normalization import BatchNormalization
 from keras.models import Sequential
 from keras.layers.core import Dense, Dropout, Activation, Flatten
@@ -19,7 +19,7 @@ from helper_functions import generate_test_df, preprocess_image, mean_f1_score
 # export THEANO_FLAGS=blas.ldflags=
 
 #Configuration 
-n_images = 500
+n_images = 2100
 imsize   = 100  # Square images
     
 
@@ -92,7 +92,8 @@ for i in range(n_images):
 #    tensor[i] = train_df.image.iloc[i][:imsize,:imsize,:]
     tensor[i] = train_df.image[i]
 
-# Reshape to fit Theanos format 
+'''Reshape to fit Theanos format 
+(samples, channels, rows, columns)'''
 tensor = tensor.reshape(n_images,3,imsize,imsize)
 
 # Clean up
@@ -102,6 +103,7 @@ train_df.drop('image', axis=1, inplace=True)
 label_start = 4  
 
 #%% Final processing and setup
+
 im_mean = tensor.mean()
 tensor -= im_mean       # Subtract the mean
 
@@ -109,6 +111,8 @@ X_train_ind, X_test_ind, Y_train_ind, Y_test_ind = train_test_split(
                                                  range(n_images),
                                                  range(n_images), 
                                                  test_size=0.1, random_state=4)
+
+print 'Mean for all images: {}'.format(im_mean)
 
 #%% VGG-like covnet
 ''' 
@@ -123,30 +127,29 @@ model = Sequential()
 model.add(Convolution2D(16, 3, 3, input_shape=(3, imsize, imsize))) # 32,3,3
 model.add(Activation('relu'))
 model.add(BatchNormalization())
-model.add(Convolution2D(16, 3, 3))  #32
+model.add(Convolution2D(16, 3, 3, W_regularizer=l2(l=0.01)))  #32
 model.add(Activation('relu'))
-model.add(MaxPooling2D(pool_size=(2, 2)))
+model.add(MaxPooling2D(pool_size=(2, 2), strides=(2,2)))
 #model.add(Dropout(0.25))
 
-model.add(Convolution2D(32, 3, 3))   # 64, 3, 3
+model.add(Convolution2D(32, 3, 3, W_regularizer=l2(.01)))   # 64, 3, 3
 model.add(Activation('relu'))
 model.add(BatchNormalization())
 model.add(Convolution2D(32, 3, 3))
 model.add(Activation('relu'))
-#model.add(BatchNormalization())
-model.add(MaxPooling2D(pool_size=(2, 2)))
+model.add(MaxPooling2D(pool_size=(2, 2), strides=(2,2)))
 model.add(Dropout(0.25))
 
 model.add(Flatten())
 # Note: Keras does automatic shape inference.
-model.add(Dense(128))       # 256
+model.add(Dense(128, W_regularizer=l2(.01)))       # 256
 model.add(Activation('relu'))
-#model.add(BatchNormalization())
-model.add(Dense(128))       # 256
+model.add(BatchNormalization())
+model.add(Dense(128, W_regularizer=l2(l=0.01)))       # 256
 model.add(Activation('relu'))
 #model.add(Dropout(0.5))
 
-model.add(Dense(9))
+model.add(Dense(9, W_regularizer=l2(.01)))
 model.add(Activation('sigmoid'))
 
 sgd = SGD(lr=0.1, decay=1e-6, momentum=0.9, nesterov=True)
@@ -157,7 +160,7 @@ model.compile(loss='binary_crossentropy', optimizer=sgd)
 
 model.fit(tensor[X_train_ind],
           train_df.iloc[Y_train_ind,label_start:].values, 
-          batch_size=32, nb_epoch=1,
+          batch_size=64, nb_epoch=2,
           validation_data=(tensor[X_test_ind],
                            train_df.iloc[Y_test_ind,label_start:].values),
           show_accuracy=True, verbose=1)
@@ -180,16 +183,16 @@ print 'Mean F1 Score: %.2f' % mean_f1_score(X_test_prediction,
                                             train_df.iloc[Y_test_ind,label_start:].values)
     
     
-#%% Save model as JSON
+##%% Save model as JSON
 #json_string = model.to_json()
-#open('my_model_architecture.json', 'w').write(json_string)
-#model.save_weights('my_model_weights.h5')  # requires h5py
-
-
-#%% Compile a Test DataFrame 
-
-test_df = generate_test_df(train_df, ['photo_id', 'business_id', 'labels'], 
-                           X_test_prediction, X_test_ind)
-
-
-    
+#open('jan_26.json', 'w').write(json_string)
+#model.save_weights('jan_26.h5')  # requires h5py
+#
+#
+##%% Compile a Test DataFrame 
+#
+#test_df = generate_test_df(train_df, ['photo_id', 'business_id', 'labels'], 
+#                           X_test_prediction, X_test_ind)
+#
+#
+#    
