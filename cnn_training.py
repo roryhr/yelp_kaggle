@@ -21,7 +21,7 @@ from helper_functions import generate_test_df, preprocess_image, mean_f1_score
 #Configuration 
 n_images = 2100
 imsize   = 100  # Square images
-    
+csv_dir = '/home/ubunut/data/yelp/'   # Folder for csv files    
 
 #%% Read in the images
 
@@ -29,7 +29,9 @@ print 'Read and preprocessing {} images'.format(n_images)
 
 start_time = time.time()
 
-im_files = glob.glob("/home/rory/kaggle/yelp/train_photos/*.jpg")
+jpg_dir = '/home/ubuntu/data/yelp/train_photos/'
+#jbg_dir = '/home/rory/kaggle/yelp/train_photos/'
+im_files = glob.glob(jpg_dir + '*.jpg')
 
 train_df = []
 
@@ -56,7 +58,7 @@ print "Took %.1f seconds and %.1f ms per image" % (elapsed_time,
                                                    1000*elapsed_time/n_images)
 #%% Read and join biz_ids on photo_id
 
-photo_biz_ids_df = pd.read_csv('train_photo_to_biz_ids.csv')  
+photo_biz_ids_df = pd.read_csv(csv_dir + 'train_photo_to_biz_ids.csv')  
 # Column names: photo_id, business_id
 
 
@@ -64,7 +66,7 @@ train_df = pd.merge(train_df, photo_biz_ids_df, on='photo_id')
 
 #%% Read and join train labels, set to 0 or 1
 
-train_labels_df = pd.read_csv('train.csv')
+train_labels_df = pd.read_csv(data_dir + 'train.csv')
 # Column names: business_id, labels
 
 # Work column-wise to encode the labels string into 9 new columns
@@ -93,7 +95,9 @@ for i in range(n_images):
     tensor[i] = train_df.image[i]
 
 '''Reshape to fit Theanos format 
-(samples, channels, rows, columns)'''
+dim_ordering='th'
+(samples, channels, rows, columns)
+'''
 tensor = tensor.reshape(n_images,3,imsize,imsize)
 
 # Clean up
