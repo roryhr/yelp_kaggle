@@ -16,12 +16,15 @@ from keras.optimizers import SGD
 
 from helper_functions import generate_test_df, preprocess_image, mean_f1_score
 
+# TODO: make sure I'm useing float32 instad of float64
+#       can't use Tensorflow on AWS...install Theano
+
 # export THEANO_FLAGS=blas.ldflags=
 
 #Configuration 
 n_images = 2100
 imsize   = 100  # Square images
-csv_dir = '/home/ubunut/data/yelp/'   # Folder for csv files    
+csv_dir = '/home/ubuntu/data/yelp/'   # Folder for csv files    
 
 #%% Read in the images
 
@@ -66,7 +69,7 @@ train_df = pd.merge(train_df, photo_biz_ids_df, on='photo_id')
 
 #%% Read and join train labels, set to 0 or 1
 
-train_labels_df = pd.read_csv(data_dir + 'train.csv')
+train_labels_df = pd.read_csv(csv_dir + 'train.csv')
 # Column names: business_id, labels
 
 # Work column-wise to encode the labels string into 9 new columns
