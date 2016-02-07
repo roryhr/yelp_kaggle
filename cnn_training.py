@@ -1,7 +1,6 @@
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
-from PIL import Image
-import numpy as np  # 1.10.1
+import numpy as np      # 1.10.1
 import pandas as pd
 import glob
 import random
@@ -14,7 +13,10 @@ from keras.layers.core import Dense, Dropout, Activation, Flatten
 from keras.layers.convolutional import Convolution2D, MaxPooling2D
 from keras.optimizers import SGD
 
-from helper_functions import generate_test_df, preprocess_image, mean_f1_score
+from helper_functions import load_and_preprocess
+from helper_functions import mean_f1_score
+
+from joblib import Parallel, delayed
 
 # THEANO_FLAGS='floatX=float32,blas.ldflags=,OMP_NUM_THREADS=3,openmp=True' python cnn_training.py
 
@@ -22,11 +24,20 @@ from helper_functions import generate_test_df, preprocess_image, mean_f1_score
 #       use list comprehension and parallelize image preprocessing
 
 
-#Configuration 
-n_images = 4100
+#%% Configuration 
+
+n_images = 20000
 imsize   = 100  # Square images
+
+model_name = 'feb_6'
+
 #csv_dir = '/home/ubuntu/data/yelp/'   # Folder for csv files    
-csv_dir = ''   # Folder for csv files    
+csv_dir = 'data/'   # Folder for csv files    
+
+#jpg_dir = '/home/ubuntu/data/yelp/train_photos/'
+jpg_dir = 'data/train_photos/'
+
+models_dir = 'models/'
 
 
 #%% Read in the images
@@ -35,26 +46,18 @@ print 'Read and preprocessing {} images'.format(n_images)
 
 start_time = time.time()
 
-#jpg_dir = '/home/ubuntu/data/yelp/train_photos/'
-jpg_dir = 'data/train_photos/'
-
 im_files = glob.glob(jpg_dir + '*.jpg')
+im_files = random.sample(im_files, n_images)  # Might as well forget other files for now
 
-train_df = []
+#%% Load and preprocess images
 
+train_images = []
 
-for file_path in random.sample(im_files, n_images):
-    b = Image.open(file_path)
-    if b.layers == 3:
-        train_df.append([preprocess_image(b,imsize,imsize), 
-                        file_path] )
-    else:
-        print "Doesn't have 3 layers, ignoring image"
-    
-train_df = pd.DataFrame(train_df, columns=['image', 'filepath'])
-#plt.imshow(train_df.image[0])
-#del a, im_files        # conserve memory
+train_images = Parallel(n_jobs=4)(delayed(load_and_preprocess)(im_file) for im_file in im_files)
 
+#%%
+train_df = pd.DataFrame(im_files, columns=['filepath'])
+#plt.imshow(train_images[0])
 
 train_df['photo_id'] = train_df.filepath.str.extract('(\d+)')
 train_df.photo_id = train_df.photo_id.astype('int')
@@ -67,7 +70,6 @@ print "Took %.1f seconds and %.1f ms per image" % (elapsed_time,
 
 photo_biz_ids_df = pd.read_csv(csv_dir + 'train_photo_to_biz_ids.csv')  
 # Column names: photo_id, business_id
-
 
 train_df = pd.merge(train_df, photo_biz_ids_df, on='photo_id')
 
@@ -98,8 +100,7 @@ if len(train_df) != n_images:
 tensor = np.zeros((n_images,imsize,imsize,3))
 
 for i in range(n_images):
-#    tensor[i] = train_df.image.iloc[i][:imsize,:imsize,:]
-    tensor[i] = train_df.image[i]
+    tensor[i] = train_images[i]
 
 '''
 Reshape to fit Theanos format 
@@ -110,11 +111,11 @@ tensor = tensor.reshape(n_images,3,imsize,imsize)
 
 tensor = tensor.astype('float32')
 
-# Clean up
-del train_labels_df, photo_biz_ids_df, i    
+#%% Clean up and save memory
 
-train_df.drop('image', axis=1, inplace=True)
-label_start = 4  
+del train_labels_df, photo_biz_ids_df, i, train_images
+
+label_start = 4  # Column number where labels in train_df start
 
 #%% Final processing and setup
 
@@ -175,7 +176,7 @@ model.compile(loss='binary_crossentropy', optimizer=sgd)
 
 model.fit(tensor[X_train_ind],
           train_df.iloc[Y_train_ind,label_start:].values, 
-          batch_size=64, nb_epoch=2,
+          batch_size=32, nb_epoch=2,
           validation_data=(tensor[X_test_ind],
                            train_df.iloc[Y_test_ind,label_start:].values),
           show_accuracy=True, verbose=1)
@@ -198,16 +199,17 @@ print 'Mean F1 Score: %.2f' % mean_f1_score(X_test_prediction,
                                             train_df.iloc[Y_test_ind,label_start:].values)
     
     
-##%% Save model as JSON
-#json_string = model.to_json()
-#open('jan_26.json', 'w').write(json_string)
-#model.save_weights('jan_26.h5')  # requires h5py
-#
-#
-##%% Compile a Test DataFrame 
-#
+#%% Save model as JSON
+    
+json_string = model.to_json()
+open(models_dir + model_name + '.json', 'w').write(json_string)
+model.save_weights(models_dir + model_name + '.h5')  # requires h5py
+
+
+#%% Compile a Test DataFrame 
+
 #test_df = generate_test_df(train_df, ['photo_id', 'business_id', 'labels'], 
 #                           X_test_prediction, X_test_ind)
-#
-#
-#    
+
+
+    

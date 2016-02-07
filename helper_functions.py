@@ -1,5 +1,7 @@
 import pandas as pd
-from PIL import Image
+#from PIL import Image
+from scipy import misc
+from joblib import Parallel, delayed
 
 
 def generate_test_df(train_df, cols, X_test_prediction, X_test_ind):
@@ -10,7 +12,8 @@ def generate_test_df(train_df, cols, X_test_prediction, X_test_ind):
     test_df = train_df[cols].iloc[X_test_ind]
 
     #New columns are integers 0-8
-    test_df = test_df.join(pd.DataFrame(data=X_test_prediction, index=X_test_ind))
+    test_df = test_df.join(pd.DataFrame(data=X_test_prediction,
+                                        index=X_test_ind))
 
 # TODO: Choose unique business IDs in a smart way --- average predictions? 
 
@@ -26,19 +29,22 @@ def generate_test_df(train_df, cols, X_test_prediction, X_test_ind):
     test_df = test_df.join(df)
     cols.append('predicted_labels')
     return test_df[cols]
-    
+        
     
 def load_and_preprocess(file_path):
-    
-    b = Image.open(file_path)
-    if b.layers != 3:
+    ''' INPUT:  Image file path (ex 'data/train_photos/54500.jpg')
+        OUTPUT: Rescaled and cropped? numpy array
+    '''
+    b = misc.imread(file_path)
+    if b.shape[2] != 3:
         print "Doesn't have 3 layers, ignoring image"  
         return
     
     return preprocess_image(b)
 
+
 def preprocess_image(im,width=100,height=100):
-    ''' INPUT: PIL Image. OUTPUT: RGB PIL Image
+    ''' INPUT: numpy.ndarray
         OUTPUT: Rescaled image and crop
     '''
     
@@ -56,7 +62,7 @@ def preprocess_image(im,width=100,height=100):
 #    
 #    return im.crop((x_left,y_top,x_left+width,y_top+height))
     
-    return im.resize((width,height))
+    return misc.imresize(im, (width,height))
     
     
 
