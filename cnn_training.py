@@ -16,15 +16,18 @@ from keras.optimizers import SGD
 
 from helper_functions import generate_test_df, preprocess_image, mean_f1_score
 
-# TODO: make sure I'm useing float32 instad of float64
-#       can't use Tensorflow on AWS...install Theano
+# THEANO_FLAGS='floatX=float32,blas.ldflags=,OMP_NUM_THREADS=3,openmp=True' python cnn_training.py
 
-# export THEANO_FLAGS=blas.ldflags=
+# TODO: make sure I'm useing float32 instad of float64
+#       use list comprehension and parallelize image preprocessing
+
 
 #Configuration 
-n_images = 2100
+n_images = 4100
 imsize   = 100  # Square images
-csv_dir = '/home/ubuntu/data/yelp/'   # Folder for csv files    
+#csv_dir = '/home/ubuntu/data/yelp/'   # Folder for csv files    
+csv_dir = ''   # Folder for csv files    
+
 
 #%% Read in the images
 
@@ -32,8 +35,9 @@ print 'Read and preprocessing {} images'.format(n_images)
 
 start_time = time.time()
 
-jpg_dir = '/home/ubuntu/data/yelp/train_photos/'
-#jbg_dir = '/home/rory/kaggle/yelp/train_photos/'
+#jpg_dir = '/home/ubuntu/data/yelp/train_photos/'
+jpg_dir = 'data/train_photos/'
+
 im_files = glob.glob(jpg_dir + '*.jpg')
 
 train_df = []
@@ -97,11 +101,14 @@ for i in range(n_images):
 #    tensor[i] = train_df.image.iloc[i][:imsize,:imsize,:]
     tensor[i] = train_df.image[i]
 
-'''Reshape to fit Theanos format 
+'''
+Reshape to fit Theanos format 
 dim_ordering='th'
 (samples, channels, rows, columns)
 '''
 tensor = tensor.reshape(n_images,3,imsize,imsize)
+
+tensor = tensor.astype('float32')
 
 # Clean up
 del train_labels_df, photo_biz_ids_df, i    
@@ -122,6 +129,7 @@ X_train_ind, X_test_ind, Y_train_ind, Y_test_ind = train_test_split(
 print 'Mean for all images: {}'.format(im_mean)
 
 #%% VGG-like covnet
+
 ''' 
 Include BatchNormalization
 

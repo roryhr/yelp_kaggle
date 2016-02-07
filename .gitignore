@@ -9,3 +9,4 @@ test_photos
 *.csv
 
 *.pyc
+*.pem

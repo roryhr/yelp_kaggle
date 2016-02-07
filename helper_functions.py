@@ -1,5 +1,5 @@
 import pandas as pd
-#from PIL import Image
+from PIL import Image
 
 
 def generate_test_df(train_df, cols, X_test_prediction, X_test_ind):
@@ -28,7 +28,14 @@ def generate_test_df(train_df, cols, X_test_prediction, X_test_ind):
     return test_df[cols]
     
     
-  
+def load_and_preprocess(file_path):
+    
+    b = Image.open(file_path)
+    if b.layers != 3:
+        print "Doesn't have 3 layers, ignoring image"  
+        return
+    
+    return preprocess_image(b)
 
 def preprocess_image(im,width=100,height=100):
     ''' INPUT: PIL Image. OUTPUT: RGB PIL Image
