@@ -2,11 +2,14 @@
 *.json
 *.h5
 
+# Temp Files
+*.py~
 # Data
 *.tgz
 train_photos
 test_photos
 *.csv
-
+*.pkl
 *.pyc
 *.pem
+*.hdf5

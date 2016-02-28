@@ -1,6 +1,8 @@
 import pandas as pd
-#from PIL import Image
+
 from scipy import misc
+import matplotlib.pyplot as plt
+
 from joblib import Parallel, delayed
 
 
@@ -42,8 +44,18 @@ def load_and_preprocess(file_path):
     
     return preprocess_image(b)
 
+def load_image(file_path):
+    ''' INPUT:  Image file path (ex 'data/train_photos/54500.jpg')
+        OUTPUT: Rescaled and cropped? numpy array
+    '''
+    b = misc.imread(file_path)
+    if b.shape[2] != 3:
+        print "Doesn't have 3 layers, ignoring image"  
+        return
+    
+    return b
 
-def preprocess_image(im,width=100,height=100):
+def preprocess_image(im,width=64,height=64):
     ''' INPUT: numpy.ndarray
         OUTPUT: Rescaled image and crop
     '''
@@ -79,3 +91,38 @@ def mean_f1_score(Y_pred, Y_true):
     r = tp*1.0/(tp + fn)
     
     return 2.0*p*r/(p + r)
+    
+    
+#%% Compare some predicted labels with true labels
+    
+def show_image_labels(im_slice, predicted_labels_encoded, true_labels, im_mean=0):
+    """Plot the test image along with the true and predicted labels 
+    
+    Usage:
+    show_image_labels(tensor[test_ind[0]], X_test_prediction[test_ind[0]], train_df['labels'][test_ind[0]], im_mean)
+    
+    predicted_labels_encoded = array([0, 1, 1, 1, 0, 1, 1, 0, 0])
+    true_labels = '1 2 4 5 6 7'
+    im_mean = 108.4926
+    """
+    
+    if im_slice.shape[0] == 3:
+        im_shape = im_slice.shape
+        
+        im_slice = im_slice.reshape(im_shape[1], im_shape[2], 3)
+        
+    im_slice += im_mean
+    
+#    im_slice = im_slice.astype('uint8')
+    
+    # generate a list of indicies which are 1 instead of 0
+    predicted_labels = [str(ind) for (ind, val) in enumerate(predicted_labels_encoded) if val]
+    
+    predicted_labels = ' '.join(predicted_labels)
+    
+    
+    plt.imshow(misc.toimage(im_slice))
+    plt.axis('off')  # clear x- and y-axes
+    plt.text(1, -7, 'Pred labels: ' + predicted_labels, fontsize=12)   
+    plt.text(1, -14, 'True labels: ' + true_labels, fontsize=12)    
+    plt.show()    
