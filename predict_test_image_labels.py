@@ -1,5 +1,4 @@
-import glob
-from joblib import Parallel, delayed
+import cPickle as pickle
 
 import matplotlib.pyplot as plt
 import matplotlib.image as mpimg
@@ -16,51 +15,28 @@ from helper_functions import load_and_preprocess
 
 # export THEANO_FLAGS=blas.ldflags=
 
-'''
-Pass in
-im_mean
-imsize
-'''
-
-
-#Configuration
-#n_images = 100
-n_images = None     # Read and process all test images
-imsize   = 64       # Square images
+#------------------------Configuration----------------------------
+csv_dir = 'data/'                           # Folder for csv files
 test_jpg_dir = 'data/test_photos/'
+save_file_name = 'data/all_test_photos'
+#-----------------------------------------------------------------
 
-#%% Read in the images
+#%% Load in preprocessed images from pickle files
+with open(save_file_name+'_images' + '.pkl', 'rb') as in_file:
+   test_images = pickle.load(in_file)
 
-print 'Read and preprocessing {} images'.format(n_images)
-start_time = time.time()
-im_files = glob.glob(test_jpg_dir + '*.jpg')
-
-if n_images:
-    im_files = random.sample(im_files, n_images)        # Forget other files
-    test_images = Parallel(n_jobs=6)(delayed(load_and_preprocess)(im_file) for im_file in im_files)
-else:
-    test_images = Parallel(n_jobs=6)(delayed(load_and_preprocess)(im_file) for im_file in im_files)
-    n_images = len(test_images)
+with open(save_file_name+'_im_files'+'.pkl', 'rb') as in_file:
+   im_files = pickle.load(in_file)
 
 
-#del a, im_files        # conserve memory
-elapsed_time = time.time() - start_time
-print "Took %.1f seconds and %.1f ms per image" % (elapsed_time,
-                                                   1000*elapsed_time/n_images)
 #%% Read and join biz_ids on photo_id
-
-
-test_df = []
-
-test_df = pd.DataFrame(test_df, columns=['filepath'])
+test_df = pd.DataFrame(im_files, columns=['filepath'])
 
 test_df['photo_id'] = test_df.filepath.str.extract('(\d+)')
 test_df.photo_id = test_df.photo_id.astype('int')
 
-
-photo_biz_ids_df = pd.read_csv('test_photo_to_biz.csv')
 # Column names: photo_id, business_id
-
+photo_biz_ids_df = pd.read_csv(csv_dir+'test_photo_to_biz.csv')
 
 test_df = pd.merge(test_df, photo_biz_ids_df, on='photo_id')
 
@@ -70,15 +46,13 @@ print 'Making tensor...'
 tensor = np.zeros((n_images,imsize,imsize,3))
 
 for i in range(n_images):
-    tensor[i] = test_df.image[i]
+    tensor[i] = test_images[i]
 
 # Reshape to fit Theanos format
 tensor = tensor.reshape(n_images,3,imsize,imsize)
 
 # Clean up
 del photo_biz_ids_df, i
-
-test_df.drop('image', axis=1, inplace=True)
 
 
 #%% Final processing and setup
@@ -101,7 +75,6 @@ X_test_prediction = (model.predict(tensor) > .5)*1
 
 
 #%% Compile a Test DataFrame
-
 test_df = generate_test_df(test_df, ['photo_id', 'business_id'],
                            X_test_prediction, np.arange(n_images))
 
