@@ -24,11 +24,11 @@ from joblib import Parallel, delayed
 
 
 #%% Configuration 
-number_of_epochs = 30
-n_images = 20000
+number_of_epochs = 3
+n_images = 2000
 imsize   = 64  # Square images
 
-model_name = 'feb_27'
+model_name = 'mar_3_1215'
 
 #csv_dir = '/home/ubuntu/data/yelp/'   # Folder for csv files    
 csv_dir = 'data/'   # Folder for csv files    
@@ -38,7 +38,6 @@ models_dir = 'models/'
 
 
 #%% Read in the images
-
 print 'Read and preprocessing {} images'.format(n_images)
 
 start_time = time.time()
@@ -225,11 +224,11 @@ print 'Mean F1 Score: %.2f' % mean_f1_score(X_test_prediction,
                                             train_df.iloc[test_ind,label_start:].values)
     
     
-##%% Save model as JSON
-#    
-#json_string = model.to_json()
-#open(models_dir + model_name + '.json', 'w').write(json_string)
-#model.save_weights(models_dir + model_name + '.h5')  # requires h5py
+#%% Save model as JSON
+    
+json_string = model.to_json()
+open(models_dir + model_name + '.json', 'w').write(json_string)
+model.save_weights(models_dir + model_name + '.h5')  # requires h5py
 
 
 #%% Compile a Test DataFrame 
