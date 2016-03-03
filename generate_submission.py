@@ -1,24 +1,21 @@
 import cPickle as pickle
-
-import matplotlib.pyplot as plt
-import matplotlib.image as mpimg
 import numpy as np
 import pandas as pd
-import random
-import time
-
-from keras.models import Sequential
 from keras.models import model_from_json
-
-from helper_functions import generate_test_df, preprocess_image
-from helper_functions import load_and_preprocess
+from helper_functions import generate_test_df
 
 # export THEANO_FLAGS=blas.ldflags=
 
 #------------------------Configuration----------------------------
+model_name = 'feb_27'
+
 csv_dir = 'data/'                           # Folder for csv files
-test_jpg_dir = 'data/test_photos/'
+models_dir = 'models/'
+#test_jpg_dir = 'data/test_photos/'
 save_file_name = 'data/all_test_photos'
+submission_file_name = 'test_submission.csv'
+
+im_mean = None
 #-----------------------------------------------------------------
 
 #%% Load in preprocessed images from pickle files
@@ -42,14 +39,17 @@ test_df = pd.merge(test_df, photo_biz_ids_df, on='photo_id')
 
 #%% Make a tensor
 print 'Making tensor...'
-
-tensor = np.zeros((n_images,imsize,imsize,3))
+n_images = len(test_images)
+im_shape = test_images[0].shape      
+# im_shape = (64, 64, 3)
+assert n_images==len(test_images), "Number of images doesn't match number of files!"
+tensor = np.zeros(shape=(n_images,)+im_shape,dtype='float32')
 
 for i in range(n_images):
     tensor[i] = test_images[i]
 
 # Reshape to fit Theanos format
-tensor = tensor.reshape(n_images,3,imsize,imsize)
+tensor = tensor.reshape(n_images,3,im_shape[0],im_shape[1])
 
 # Clean up
 del photo_biz_ids_df, i
@@ -61,11 +61,9 @@ if im_mean is None:
 tensor -= im_mean       # Subtract the mean
 
 
-#%% Load model reconstruction from JSON:
-
-model = model_from_json(open('my_model_architecture.json').read())
-model.load_weights('my_model_weights.h5')
-
+#%% Load model from JSON and weights from HDF5:
+model = model_from_json(open(models_dir+model_name+'.json').read())
+model.load_weights(models_dir+model_name+'.h5')
 
 #%%
 # Threshold at 0.5 and convert to 0 or 1
@@ -79,8 +77,7 @@ test_df = generate_test_df(test_df, ['photo_id', 'business_id'],
                            X_test_prediction, np.arange(n_images))
 
 #%% Generate a submission
-
-test_df[['business_id', 'predicted_labels']].to_csv('csv_testing_yo.csv',
+test_df[['business_id', 'predicted_labels']].to_csv(submission_file_name,
                                                     index=False,
-                                                    header=['business_id','labels']
+                                                    header=['business_id','labels'],
                                                     compression='gzip')
