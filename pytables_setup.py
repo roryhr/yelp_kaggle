@@ -26,7 +26,7 @@ h5file = tables.open_file(hdf5_file_name,
                           mode = "w", 
                           title = "Yelp Photos")
 
-group = h5file.create_group("/", 'test_images', 'Test Photos')
+group = h5file.create_group('/', 'test_images', 'Test Images')
 table = h5file.create_table(group, 'images', Images, "test photo and filename")
 
 

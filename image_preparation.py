@@ -1,4 +1,4 @@
-#import glob
+import glob
 # from joblib import Parallel, delayed
 from helper_functions import load_and_preprocess
 import cPickle as pickle
@@ -9,13 +9,13 @@ import time
 n_images = None     # Read and process all test images
 imsize   = 64       # Square images
 #n_jobs = 3
-test_jpg_dir = 'data/test_photos/'
+test_jpg_dir = 'data/train_photos/'
 
-save_file_name = 'data/all_test_photos'
+save_file_name = 'data/all_train_photos'
 #---------------------------------------------------------
 
 
-#im_files = glob.glob(test_jpg_dir + '*.jpg')
+im_files = glob.glob(test_jpg_dir + '*.jpg')
 
 
 #%% Read in the images

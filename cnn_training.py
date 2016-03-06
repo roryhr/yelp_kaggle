@@ -8,7 +8,7 @@ from sklearn.cross_validation import train_test_split
 from keras.regularizers import l2
 from keras.layers.normalization import BatchNormalization
 from keras.models import Sequential
-from keras.layers.core import Dense, Dropout, Activation, Flatten
+from keras.layers.core import Dense, Activation, Flatten
 from keras.layers.convolutional import Convolution2D, MaxPooling2D
 from keras.optimizers import SGD
 
@@ -19,23 +19,19 @@ from joblib import Parallel, delayed
 
 # THEANO_FLAGS='floatX=float32,blas.ldflags=,OMP_NUM_THREADS=3,openmp=True' python cnn_training.py
 
-# TODO: make sure I'm useing float32 instad of float64
-#       use list comprehension and parallelize image preprocessing
-
 
 #%% Configuration 
-number_of_epochs = 3
-n_images = 2000
+number_of_epochs = 40
+n_images = 50000
 imsize   = 64  # Square images
 
-model_name = 'mar_3_1215'
-
-#csv_dir = '/home/ubuntu/data/yelp/'   # Folder for csv files    
-csv_dir = 'data/'   # Folder for csv files    
+model_name = 'mar_5_1215'
+csv_dir = 'data/'                        # Folder for csv files    
 
 jpg_dir = 'data/train_photos/'
 models_dir = 'models/'
 
+weight_decay = 0.0001
 
 #%% Read in the images
 print 'Read and preprocessing {} images'.format(n_images)
@@ -46,9 +42,8 @@ im_files = glob.glob(jpg_dir + '*.jpg')
 im_files = random.sample(im_files, n_images)  # Might as well forget other files for now
 
 #%% Load and preprocess images
-
 train_images = []
-train_images = Parallel(n_jobs=5)(delayed(load_and_preprocess)(im_file) for im_file in im_files)
+train_images = Parallel(n_jobs=3)(delayed(load_and_preprocess)(im_file) for im_file in im_files)
 
 #%%
 train_df = pd.DataFrame(im_files, columns=['filepath'])
@@ -141,55 +136,54 @@ if strides is None:
 model = Sequential()
 # INPUT: 64x64 images with 3 channels -> (3, 64, 64) tensors.
 # this applies 16 convolution filters of size 3x3 each.
-model.add(Convolution2D(8, 3, 3, 
-#                        W_regularizer=l2(.01), 
+model.add(Convolution2D(nb_filter=8, nb_row=3, nb_col=3,
+                        W_regularizer=l2(weight_decay), 
                         input_shape=(3,imsize,imsize),
-                        dim_ordering='th')
-          ) 
+                        dim_ordering='th')) 
 model.add(BatchNormalization())
 model.add(Activation('relu'))
-model.add(Convolution2D(8, 3, 3))  #32
+model.add(Convolution2D(8, 3, 3, W_regularizer=l2(weight_decay)))
 model.add(BatchNormalization())
 model.add(Activation('relu'))
 model.add(MaxPooling2D(pool_size=(2,2)))
 # OUTPUT: 32x32
 
-model.add(Convolution2D(16, 3, 3))   # 64, 3, 3
+model.add(Convolution2D(16, 3, 3, W_regularizer=l2(weight_decay)))
 model.add(BatchNormalization())
 model.add(Activation('relu'))
-model.add(Convolution2D(16, 3, 3))
+model.add(Convolution2D(16, 3, 3, W_regularizer=l2(weight_decay)))
 model.add(BatchNormalization())
 model.add(Activation('relu'))
 model.add(MaxPooling2D(pool_size=(2,2)))
 # OUTPUT: 16x16       W_regularizer=l2(.01)
 
-model.add(Convolution2D(32, 3, 3))   # 64, 3, 3
+model.add(Convolution2D(32, 3, 3, W_regularizer=l2(weight_decay)))
 model.add(BatchNormalization())
 model.add(Activation('relu'))
-model.add(Convolution2D(32, 3, 3))
+model.add(Convolution2D(32, 3, 3, W_regularizer=l2(weight_decay)))
 model.add(BatchNormalization())
 model.add(Activation('relu'))
 model.add(MaxPooling2D(pool_size=(2,2)))
 # OUTPUT: 8x8  
 
-model.add(Convolution2D(32, 2, 2))   # 64, 3, 3
+model.add(Convolution2D(32, 2, 2, W_regularizer=l2(weight_decay)))
 model.add(BatchNormalization())
 model.add(Activation('relu'))
-model.add(Convolution2D(32, 2, 2))
+model.add(Convolution2D(32, 2, 2, W_regularizer=l2(weight_decay)))
 model.add(BatchNormalization())
 model.add(Activation('relu'))
 model.add(MaxPooling2D(pool_size=(2,2)))
 # OUTPUT: 4x4x32
 
 model.add(Flatten())
-model.add(Dense(36))
+model.add(Dense(512, W_regularizer=l2(weight_decay)))
 model.add(BatchNormalization())
 model.add(Activation('relu'))
-model.add(Dense(36))
+model.add(Dense(512, W_regularizer=l2(weight_decay)))
 model.add(BatchNormalization())
 model.add(Activation('relu'))
 
-model.add(Dense(9))
+model.add(Dense(9, W_regularizer=l2(weight_decay)))
 model.add(Activation('sigmoid'))
 
 sgd = SGD(lr=0.1, decay=1e-5, momentum=0.9, nesterov=True)

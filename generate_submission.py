@@ -3,12 +3,11 @@ import numpy as np
 import pandas as pd
 from keras.models import model_from_json
 from helper_functions import generate_test_df
-
+import tables
 # export THEANO_FLAGS=blas.ldflags=
 
-#%%----------------------Configuration----------------------------
-model_name = 'mar_1_1852'
-
+#%% Configuration
+model_name = 'mar_5_1215'
 csv_dir = 'data/'                           # Folder for csv files
 models_dir = 'models/'
 #test_jpg_dir = 'data/test_photos/'
@@ -16,16 +15,25 @@ save_file_name = 'data/all_test_photos'
 submission_file_name = 'submission_mar_3.csv.gz'
 
 #im_mean = None
-im_mean = 100
-#-----------------------------------------------------------------
+im_mean = 106.7203
 
-#%% Load in preprocessed images from pickle files
+
+#%% Load in preprocessed images from pickle file and json file
 with open(save_file_name+'_images' + '.pkl', 'rb') as in_file:
    test_images = pickle.load(in_file)
 
 with open(save_file_name+'_im_files'+'.pkl', 'rb') as in_file:
    im_files = pickle.load(in_file)
 
+
+#%% Load in preprocessed images from hdf5 file
+h5file = tables.open_file('data/photos.hdf5')
+
+im_table = h5file.root.test_images.images
+
+test_images = im_table.read(start=0, stop=10, field='image')
+im_files = im_table.read(start=0, stop=10, field='file_name')
+   
 #%% Read and join biz_ids on photo_id
 test_df = pd.DataFrame(im_files, columns=['filepath'])
 
@@ -64,6 +72,7 @@ tensor -= im_mean       # Subtract the mean
 model = model_from_json(open(models_dir+model_name+'.json').read())
 model.load_weights(models_dir+model_name+'.h5')
 
+
 #%% Predict
 print 'Generating predictions'
 # Threshold at 0.5 and convert to 0 or 1
@@ -74,6 +83,7 @@ X_test_prediction = (model.predict(tensor) > .5)*1
 #%% Compile a Test DataFrame
 test_df = generate_test_df(test_df, ['photo_id', 'business_id'],
                            X_test_prediction, np.arange(n_images))
+
 
 #%% Generate a submission
 test_df[['business_id', 'predicted_labels']].to_csv(submission_file_name,
