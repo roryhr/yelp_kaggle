@@ -10,6 +10,7 @@
 train_photos
 test_photos
 *.csv
+*.gz
 *.pkl
 *.pyc
 *.pem

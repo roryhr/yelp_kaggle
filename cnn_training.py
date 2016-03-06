@@ -21,11 +21,12 @@ from joblib import Parallel, delayed
 
 
 #%% Configuration 
-number_of_epochs = 40
-n_images = 50000
+number_of_epochs = 10
+n_images = 5000
 imsize   = 64  # Square images
-
-model_name = 'mar_5_1215'
+save_model = False
+show_plots = True
+model_name = 'mar_6_0015'
 csv_dir = 'data/'                        # Folder for csv files    
 
 jpg_dir = 'data/train_photos/'
@@ -136,67 +137,67 @@ if strides is None:
 model = Sequential()
 # INPUT: 64x64 images with 3 channels -> (3, 64, 64) tensors.
 # this applies 16 convolution filters of size 3x3 each.
-model.add(Convolution2D(nb_filter=8, nb_row=3, nb_col=3,
+model.add(Convolution2D(nb_filter=4, nb_row=3, nb_col=3,
                         W_regularizer=l2(weight_decay), 
                         input_shape=(3,imsize,imsize),
                         dim_ordering='th')) 
+model.add(BatchNormalization())
+model.add(Activation('relu'))
+model.add(Convolution2D(4, 3, 3, W_regularizer=l2(weight_decay)))
+model.add(BatchNormalization())
+model.add(Activation('relu'))
+model.add(MaxPooling2D(pool_size=(2,2)))
+# OUTPUT: 32x32
+
+model.add(Convolution2D(8, 3, 3, W_regularizer=l2(weight_decay)))
 model.add(BatchNormalization())
 model.add(Activation('relu'))
 model.add(Convolution2D(8, 3, 3, W_regularizer=l2(weight_decay)))
 model.add(BatchNormalization())
 model.add(Activation('relu'))
 model.add(MaxPooling2D(pool_size=(2,2)))
-# OUTPUT: 32x32
-
-model.add(Convolution2D(16, 3, 3, W_regularizer=l2(weight_decay)))
-model.add(BatchNormalization())
-model.add(Activation('relu'))
-model.add(Convolution2D(16, 3, 3, W_regularizer=l2(weight_decay)))
-model.add(BatchNormalization())
-model.add(Activation('relu'))
-model.add(MaxPooling2D(pool_size=(2,2)))
 # OUTPUT: 16x16       W_regularizer=l2(.01)
 
-model.add(Convolution2D(32, 3, 3, W_regularizer=l2(weight_decay)))
+model.add(Convolution2D(16, 3, 3, W_regularizer=l2(weight_decay)))
 model.add(BatchNormalization())
 model.add(Activation('relu'))
-model.add(Convolution2D(32, 3, 3, W_regularizer=l2(weight_decay)))
+model.add(Convolution2D(16, 3, 3, W_regularizer=l2(weight_decay)))
 model.add(BatchNormalization())
 model.add(Activation('relu'))
 model.add(MaxPooling2D(pool_size=(2,2)))
 # OUTPUT: 8x8  
 
-model.add(Convolution2D(32, 2, 2, W_regularizer=l2(weight_decay)))
+model.add(Convolution2D(16, 2, 2, W_regularizer=l2(weight_decay)))
 model.add(BatchNormalization())
 model.add(Activation('relu'))
-model.add(Convolution2D(32, 2, 2, W_regularizer=l2(weight_decay)))
+model.add(Convolution2D(16, 2, 2, W_regularizer=l2(weight_decay)))
 model.add(BatchNormalization())
 model.add(Activation('relu'))
 model.add(MaxPooling2D(pool_size=(2,2)))
 # OUTPUT: 4x4x32
 
 model.add(Flatten())
-model.add(Dense(512, W_regularizer=l2(weight_decay)))
+model.add(Dense(256, W_regularizer=l2(weight_decay)))
 model.add(BatchNormalization())
 model.add(Activation('relu'))
-model.add(Dense(512, W_regularizer=l2(weight_decay)))
+model.add(Dense(256, W_regularizer=l2(weight_decay)))
 model.add(BatchNormalization())
 model.add(Activation('relu'))
 
-model.add(Dense(9, W_regularizer=l2(weight_decay)))
+model.add(Dense(9))
 model.add(Activation('sigmoid'))
 
-sgd = SGD(lr=0.1, decay=1e-5, momentum=0.9, nesterov=True)
+sgd = SGD(lr=0.1, decay=1e-4, momentum=0.9, nesterov=True)
 model.compile(loss='binary_crossentropy', optimizer=sgd)
 
 
 #%% Fit model
-
 model.fit(tensor[train_ind],
           train_df.iloc[train_ind,label_start:].values, 
           batch_size=32, nb_epoch=number_of_epochs,
           validation_data=(tensor[test_ind],
                            train_df.iloc[test_ind,label_start:].values),
+          shuffle=True,
 #          show_accuracy=True, 
           verbose=1)
 
@@ -219,24 +220,14 @@ print 'Mean F1 Score: %.2f' % mean_f1_score(X_test_prediction,
     
     
 #%% Save model as JSON
-    
-json_string = model.to_json()
-open(models_dir + model_name + '.json', 'w').write(json_string)
-model.save_weights(models_dir + model_name + '.h5')  # requires h5py
-
-
-#%% Compile a Test DataFrame 
-
-#test_df = generate_test_df(train_df, ['photo_id', 'business_id', 'labels'], 
-#                           X_test_prediction, X_test_ind)
-
-    
-
-
+if save_model:
+    json_string = model.to_json()
+    open(models_dir + model_name + '.json', 'w').write(json_string)
+    model.save_weights(models_dir + model_name + '.h5')  # requires h5py
     
 #%% Plot a few images to get a feel of how I did
-    
-for i in range(10):
-    show_image_labels(tensor[test_ind[i]], X_test_prediction[i], 
-                      train_df['labels'][test_ind[i]], im_mean)
+if show_plots:
+    for i in range(10):
+        show_image_labels(tensor[test_ind[i]], X_test_prediction[i], 
+                          train_df['labels'][test_ind[i]], im_mean)
 
