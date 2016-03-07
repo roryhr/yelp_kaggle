@@ -1,7 +1,7 @@
 import numpy as np
 import pandas as pd
 from keras.models import model_from_json
-from helper_functions import generate_test_df
+#from helper_functions import generate_test_df
 import tables
 
 
@@ -29,13 +29,15 @@ def generate_labels_df(all_predictions):
     return df2
 
 #%% Configuration
-model_name = 'mar_5_1215'
+model_name = 'mar_7_0005'
 csv_dir = 'data/'                           # Folder for csv files
 models_dir = 'models/'
 #save_file_name = 'data/all_test_photos'
-submission_file_name = 'submission_mar_5.csv.gz'
+submission_file_name = 'submissions/submission_mar_7.csv.gz'
 split_point = 100000   # Split test_images into 2 batches, roughly in half
-im_mean = 106.7203
+#im_mean = 106.7203
+#im_mean = 106.74557           # mar_6_1136
+im_mean = 106.81699           # mar_7_0005, trained on 0-1
 
 #%% Load model from JSON and weights from HDF5:
 model = model_from_json(open(models_dir+model_name+'.json').read())

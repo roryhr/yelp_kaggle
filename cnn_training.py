@@ -16,35 +16,44 @@ from helper_functions import load_and_preprocess, mean_f1_score
 from helper_functions import show_image_labels
 
 from joblib import Parallel, delayed
+import tables
 
-# THEANO_FLAGS='floatX=float32,blas.ldflags=,OMP_NUM_THREADS=3,openmp=True' python cnn_training.py
+# THEANO_FLAGS='floatX=float32,blas.ldflags=,OMP_NUM_THREADS=2,openmp=True' python cnn_training.py
 
 
 #%% Configuration 
-number_of_epochs = 10
-n_images = 5000
+number_of_epochs = 30
+n_images = 19000
 imsize   = 64  # Square images
 save_model = False
 show_plots = True
-model_name = 'mar_6_0015'
+model_name = 'mar_7_0005'
 csv_dir = 'data/'                        # Folder for csv files    
-
+reload_images = False
 jpg_dir = 'data/train_photos/'
 models_dir = 'models/'
-
-weight_decay = 0.0001
+weight_decay = 0.01
 
 #%% Read in the images
 print 'Read and preprocessing {} images'.format(n_images)
 
 start_time = time.time()
 
-im_files = glob.glob(jpg_dir + '*.jpg')
-im_files = random.sample(im_files, n_images)  # Might as well forget other files for now
+if reload_images:
+    im_files = glob.glob(jpg_dir + '*.jpg')
+    im_files = random.sample(im_files, n_images)  
+    # Might as well forget other files for now
+    
+    train_images = []
+    train_images = Parallel(n_jobs=3)(delayed(load_and_preprocess)(im_file) for im_file in im_files)
+else:
+    h5file = tables.open_file('data/all_photos.hdf5')
+    im_table = h5file.root.train_images.images
+    
+    im_files = im_table.read(start=0, stop=n_images, field='file_name')
+    train_images = im_table.read(start=0, stop=n_images, field='image')
+    h5file.close()
 
-#%% Load and preprocess images
-train_images = []
-train_images = Parallel(n_jobs=3)(delayed(load_and_preprocess)(im_file) for im_file in im_files)
 
 #%%
 train_df = pd.DataFrame(im_files, columns=['filepath'])
@@ -86,12 +95,13 @@ if len(train_df) != n_images:
     print "Lost an image somewhere!"
     n_images = len(train_df) 
 
+if reload_images:
+    tensor = np.zeros((n_images,imsize,imsize,3))
     
-tensor = np.zeros((n_images,imsize,imsize,3))
-
-for i in range(n_images):
-    tensor[i] = train_images[i]
-
+    for i in range(n_images):
+        tensor[i] = train_images[i]
+else:
+    tensor = train_images
 '''
 Reshape to fit Theanos format 
 dim_ordering='th'
@@ -123,7 +133,7 @@ train_ind, test_ind, _, _ = train_test_split(range(n_images),
 
 print 'Mean for all images: {}'.format(im_mean)
 
-#%% VGG-like covnet
+#%% ResNet-like 
 
 ''' 
 Include BatchNormalization
@@ -136,17 +146,18 @@ if strides is None:
     
 model = Sequential()
 # INPUT: 64x64 images with 3 channels -> (3, 64, 64) tensors.
-# this applies 16 convolution filters of size 3x3 each.
-model.add(Convolution2D(nb_filter=4, nb_row=3, nb_col=3,
+# this applies 4 convolution filters of size 3x3 each.
+model.add(Convolution2D(nb_filter=4, nb_row=7, nb_col=7,
                         W_regularizer=l2(weight_decay), 
                         input_shape=(3,imsize,imsize),
+                        subsample=(2,2)
                         dim_ordering='th')) 
 model.add(BatchNormalization())
 model.add(Activation('relu'))
 model.add(Convolution2D(4, 3, 3, W_regularizer=l2(weight_decay)))
 model.add(BatchNormalization())
 model.add(Activation('relu'))
-model.add(MaxPooling2D(pool_size=(2,2)))
+model.add(MaxPooling2D(pool_size=(3,3), strides=(2,2)))
 # OUTPUT: 32x32
 
 model.add(Convolution2D(8, 3, 3, W_regularizer=l2(weight_decay)))
@@ -155,7 +166,7 @@ model.add(Activation('relu'))
 model.add(Convolution2D(8, 3, 3, W_regularizer=l2(weight_decay)))
 model.add(BatchNormalization())
 model.add(Activation('relu'))
-model.add(MaxPooling2D(pool_size=(2,2)))
+model.add(MaxPooling2D(pool_size=(3,3), pool_size=(2,2)))
 # OUTPUT: 16x16       W_regularizer=l2(.01)
 
 model.add(Convolution2D(16, 3, 3, W_regularizer=l2(weight_decay)))
