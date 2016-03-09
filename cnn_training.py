@@ -5,6 +5,8 @@ import glob
 import random
 import time
 from sklearn.cross_validation import train_test_split
+
+from keras.callbacks import EarlyStopping
 from keras.regularizers import l2
 from keras.layers.normalization import BatchNormalization
 from keras.models import Sequential
@@ -22,8 +24,8 @@ import tables
 
 
 #%% Configuration 
-number_of_epochs = 30
-n_images = 19000
+number_of_epochs = 15
+n_images = 1000
 imsize   = 64  # Square images
 save_model = False
 show_plots = True
@@ -66,7 +68,6 @@ elapsed_time = time.time() - start_time
 print "Took %.1f seconds and %.1f ms per image" % (elapsed_time,
                                                    1000*elapsed_time/n_images)
 #%% Read and join biz_ids on photo_id
-
 photo_biz_ids_df = pd.read_csv(csv_dir + 'train_photo_to_biz_ids.csv')  
 # Column names: photo_id, business_id
 
@@ -146,59 +147,35 @@ if strides is None:
     
 model = Sequential()
 # INPUT: 64x64 images with 3 channels -> (3, 64, 64) tensors.
-# this applies 4 convolution filters of size 3x3 each.
-model.add(Convolution2D(nb_filter=4, nb_row=7, nb_col=7,
+# this applies 16 convolution filters of size 3x3 each.
+model.add(Convolution2D(nb_filter=16, nb_row=7, nb_col=7,
                         W_regularizer=l2(weight_decay), 
                         input_shape=(3,imsize,imsize),
-                        subsample=(2,2)
+                        subsample=(2,2),
                         dim_ordering='th')) 
 model.add(BatchNormalization())
 model.add(Activation('relu'))
-model.add(Convolution2D(4, 3, 3, W_regularizer=l2(weight_decay)))
+model.add(MaxPooling2D(pool_size=(3,3), strides=(2,2)))
+# OUTPUT: 14x14
+
+model.add(Convolution2D(32, 3, 3, W_regularizer=l2(weight_decay)))
+model.add(BatchNormalization())
+model.add(Activation('relu'))
+model.add(Convolution2D(32, 3, 3, W_regularizer=l2(weight_decay)))
 model.add(BatchNormalization())
 model.add(Activation('relu'))
 model.add(MaxPooling2D(pool_size=(3,3), strides=(2,2)))
-# OUTPUT: 32x32
-
-model.add(Convolution2D(8, 3, 3, W_regularizer=l2(weight_decay)))
-model.add(BatchNormalization())
-model.add(Activation('relu'))
-model.add(Convolution2D(8, 3, 3, W_regularizer=l2(weight_decay)))
-model.add(BatchNormalization())
-model.add(Activation('relu'))
-model.add(MaxPooling2D(pool_size=(3,3), pool_size=(2,2)))
-# OUTPUT: 16x16       W_regularizer=l2(.01)
-
-model.add(Convolution2D(16, 3, 3, W_regularizer=l2(weight_decay)))
-model.add(BatchNormalization())
-model.add(Activation('relu'))
-model.add(Convolution2D(16, 3, 3, W_regularizer=l2(weight_decay)))
-model.add(BatchNormalization())
-model.add(Activation('relu'))
-model.add(MaxPooling2D(pool_size=(2,2)))
-# OUTPUT: 8x8  
-
-model.add(Convolution2D(16, 2, 2, W_regularizer=l2(weight_decay)))
-model.add(BatchNormalization())
-model.add(Activation('relu'))
-model.add(Convolution2D(16, 2, 2, W_regularizer=l2(weight_decay)))
-model.add(BatchNormalization())
-model.add(Activation('relu'))
-model.add(MaxPooling2D(pool_size=(2,2)))
-# OUTPUT: 4x4x32
+# OUTPUT: 4x4       W_regularizer=l2(.01)
 
 model.add(Flatten())
-model.add(Dense(256, W_regularizer=l2(weight_decay)))
-model.add(BatchNormalization())
-model.add(Activation('relu'))
-model.add(Dense(256, W_regularizer=l2(weight_decay)))
+model.add(Dense(512, W_regularizer=l2(weight_decay)))
 model.add(BatchNormalization())
 model.add(Activation('relu'))
 
 model.add(Dense(9))
 model.add(Activation('sigmoid'))
 
-sgd = SGD(lr=0.1, decay=1e-4, momentum=0.9, nesterov=True)
+sgd = SGD(lr=0.1, decay=1e-2, momentum=0.9, nesterov=True)
 model.compile(loss='binary_crossentropy', optimizer=sgd)
 
 
@@ -209,6 +186,7 @@ model.fit(tensor[train_ind],
           validation_data=(tensor[test_ind],
                            train_df.iloc[test_ind,label_start:].values),
           shuffle=True,
+          callbacks=[EarlyStopping(monitor='val_loss', patience=2, mode='min')],
 #          show_accuracy=True, 
           verbose=1)
 

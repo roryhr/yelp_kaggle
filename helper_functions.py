@@ -2,7 +2,7 @@ import pandas as pd
 
 from scipy import misc
 import matplotlib.pyplot as plt
-
+import random
 from joblib import Parallel, delayed
 
 
@@ -55,6 +55,31 @@ def load_image(file_path):
     
     return b
 
+
+def resnet_image_processing(file_path):
+    """Apply image processing from MSFT's ResNet
+    
+    http://arxiv.org/abs/1512.03385
+    """
+    
+    img = misc.imread(file_path)
+    (height, width, channels) = img.shape
+    
+    # Resize the image with so that shorter side is between 256-480
+    scale = float(random.sample(xrange(256,480),1)[0])/min(height, width)
+    img = misc.imresize(img, size=scale)
+
+    (height, width, channels) = img.shape
+    # Take a 224x224 randomly selected crop
+    
+#    Randomly take a crop from valid choices
+    row = random.sample(xrange(height-224),1)[0]
+    col = random.sample(xrange(width-224),1)[0]
+    
+    crop_img = img[row:row+224,col:col+224,:]
+    
+    return crop_img
+    
 def preprocess_image(im,width=64,height=64):
     ''' INPUT: numpy.ndarray
         OUTPUT: Rescaled image and crop
@@ -123,6 +148,6 @@ def show_image_labels(im_slice, predicted_labels_encoded, true_labels, im_mean=0
     
     plt.imshow(misc.toimage(im_slice))
     plt.axis('off')  # clear x- and y-axes
-    plt.text(1, -7, 'Pred labels: ' + predicted_labels, fontsize=12)   
-    plt.text(1, -14, 'True labels: ' + true_labels, fontsize=12)    
+    plt.text(1, -6, 'Pred labels: ' + predicted_labels, fontsize=12)   
+    plt.text(1, -16, 'True labels: ' + true_labels, fontsize=12)    
     plt.show()    
