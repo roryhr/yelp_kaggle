@@ -6,7 +6,7 @@ import random
 import time
 from sklearn.cross_validation import train_test_split
 
-from keras.callbacks import EarlyStopping
+from keras.callbacks import EarlyStopping, TensorBoard
 from keras.regularizers import l2
 from keras.layers.normalization import BatchNormalization
 from keras.models import Graph
@@ -23,8 +23,8 @@ import tables
 
 
 #%% Configuration 
-number_of_epochs = 15
-n_images = 2000
+number_of_epochs = 20
+n_images = 1000
 imsize   = 224  # Square images
 save_model = False
 show_plots = True
@@ -126,10 +126,10 @@ label_start = 4  # Column number where labels in train_df start
 im_mean = tensor.mean()
 tensor -= im_mean       # Subtract the mean
 
-train_ind, test_ind, _, _ = train_test_split(range(n_images),
-                                             range(n_images),
-                                             test_size=0.1, 
-                                             random_state=4)
+#train_ind, test_ind, _, _ = train_test_split(range(n_images),
+#                                             range(n_images),
+#                                             test_size=0.1, 
+#                                             random_state=4)
 
 print 'Mean for all images: {}'.format(im_mean)
 #%%
@@ -175,11 +175,12 @@ def building_block(graph, layer_nb, conv_nb, input_name, nb_filters):
 
 
 #%% ResNet-like 
-"""18 layer ResNet with skip connections 
+"""34-layer ResNet with skip connections 
 
     http://arxiv.org/abs/1512.03385
 """
-nb_filters = 16
+print 'Building model'
+nb_filters = 8
 
 graph = Graph()
 graph.add_input(name='input', input_shape=(3,imsize,imsize))   
@@ -315,18 +316,17 @@ graph.add_node(Dense(9, activation='sigmoid'), name='dense', input='flatten')
 graph.add_output(name='output', input='dense')
                
                
-sgd = SGD(lr=0.1, decay=1e-2, momentum=0.9)
+sgd = SGD(lr=0.1, decay=1e-4, momentum=0.9)
 graph.compile(optimizer=sgd, loss={'output':'binary_crossentropy'})
 
 
 #%% Fit model
-graph.fit({'input': tensor[train_ind],
-           'output': train_df.iloc[train_ind,label_start:].values}, 
-          batch_size=32, nb_epoch=number_of_epochs,
-          validation_data={'input': tensor[test_ind],
-                            'output': train_df.iloc[test_ind,label_start:].values},
+graph.fit({'input': tensor, 'output': train_df.iloc[:,label_start:].values}, 
+          batch_size=64, nb_epoch=number_of_epochs, validation_split=0.1,
+#          validation_data={'input': tensor[test_ind],
+#                            'output': train_df.iloc[test_ind,label_start:].values},
           shuffle=True,
-#          callbacks=[EarlyStopping(monitor='loss', patience=0, mode='min')],
+          callbacks=[TensorBoard('/home/rory/logs')],
           verbose=1)
 
 #%% Compute mean_f1_score
@@ -338,12 +338,12 @@ graph.fit({'input': tensor[train_ind],
     Benchmark           0.64590 	
     Leader (1/17)       0.81090
 '''
-
+X_val, y_val, _ = graph.validation_data
 # Threshold at 0.5 and convert to 0 or 1 
-predictions = (graph.predict({'input':tensor[test_ind]})['output'] > .5)*1
+predictions = (graph.predict({'input':X_val})['output'] > .5)*1
 
 print 'Mean F1 Score: %.2f' % mean_f1_score(predictions,
-                                            train_df.iloc[test_ind,label_start:].values)
+                                            y_val)
     
     
 #%% Save model as JSON
