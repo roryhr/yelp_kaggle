@@ -1,12 +1,11 @@
-#import matplotlib.image as mpimg
+import cPickle as pickle
+import glob
 import numpy as np      # 1.10.1
 import pandas as pd
-import glob
 import random
 import time
-from sklearn.cross_validation import train_test_split
 
-from keras.callbacks import EarlyStopping, TensorBoard
+from keras.callbacks import EarlyStopping, TensorBoard, LearningRateScheduler
 from keras.regularizers import l2
 from keras.layers.normalization import BatchNormalization
 from keras.models import Graph
@@ -19,41 +18,51 @@ from helper_functions import mean_f1_score, resnet_image_processing
 from helper_functions import show_image_labels
 
 from joblib import Parallel, delayed
-import tables
+#import tables
 
 
 #%% Configuration 
-number_of_epochs = 20
-n_images = 1000
+nb_filters = 10
+number_of_epochs = 15
+mini_batch_size = 100
+n_images = 20000
 imsize   = 224  # Square images
 save_model = False
-show_plots = True
+show_plots = False
 model_name = 'mar_7_0005'
 csv_dir = 'data/'                        # Folder for csv files    
-reload_images = True
+process_images = False 
+photo_cache = 'data/photo_cache.pkl'
 jpg_dir = 'data/train_photos/'
 models_dir = 'models/'
-weight_decay = 0.01
+weight_decay = 0.0001
+
+def lr_schedule(epoch):
+    if epoch < 6:
+        lr = 0.1
+    elif epoch < 10:
+        lr = 0.01
+    else:
+        lr = 0.001
+    return lr
 
 #%% Read in the images
 print 'Read and preprocessing {} images'.format(n_images)
-
 start_time = time.time()
 
-if reload_images:
+if process_images:
     im_files = glob.glob(jpg_dir + '*.jpg')
     im_files = random.sample(im_files, n_images)  
     # Might as well forget other files for now
     
     train_images = []
     train_images = Parallel(n_jobs=3)(delayed(resnet_image_processing)(im_file) for im_file in im_files)
-else:
-    h5file = tables.open_file('data/all_photos.hdf5')
-    im_table = h5file.root.train_images.images
     
-    im_files = im_table.read(start=0, stop=n_images, field='file_name')
-    train_images = im_table.read(start=0, stop=n_images, field='image')
-    h5file.close()
+    with open(photo_cache, 'wb') as out_file:
+        pickle.dump((im_files, train_images), out_file, 2)
+else:
+    with open(photo_cache, 'rb') as in_file:
+        im_files, train_images = pickle.load(in_file)
 
 
 #%%
@@ -73,7 +82,6 @@ photo_biz_ids_df = pd.read_csv(csv_dir + 'train_photo_to_biz_ids.csv')
 train_df = pd.merge(train_df, photo_biz_ids_df, on='photo_id')
 
 #%% Read and join train labels, set to 0 or 1
-
 train_labels_df = pd.read_csv(csv_dir + 'train.csv')
 # Column names: business_id, labels
 
@@ -95,50 +103,31 @@ if len(train_df) != n_images:
     print "Lost an image somewhere!"
     n_images = len(train_df) 
 
-if reload_images:
-    tensor = np.zeros((n_images,imsize,imsize,3))
     
-    for i in range(n_images):
-        tensor[i] = train_images[i]
-else:
-    tensor = train_images
-'''
-Reshape to fit Theanos format 
+tensor = np.stack(train_images)
+"""Reshape to fit Theanos format 
 dim_ordering='th'
 (samples, channels, rows, columns)
 vs
 dim_ordering='tf'
 (samples, rows, cols, channels)
-
-'''
+"""
 tensor = tensor.reshape(n_images,3,imsize,imsize)
-
 tensor = tensor.astype('float32')
 
 #%% Clean up and save memory
-
 del train_labels_df, photo_biz_ids_df, i, train_images
 
 label_start = 4  # Column number where labels in train_df start
 
 #%% Final processing and setup
-
 im_mean = tensor.mean()
-tensor -= im_mean       # Subtract the mean
-
-#train_ind, test_ind, _, _ = train_test_split(range(n_images),
-#                                             range(n_images),
-#                                             test_size=0.1, 
-#                                             random_state=4)
-
+tensor -= im_mean       
+# Subtract the mean for faster convergence
 print 'Mean for all images: {}'.format(im_mean)
 #%%
-
 def building_block(graph, layer_nb, conv_nb, input_name, nb_filters):
-    """ Add a Residual building block
-    
-
-    """
+    """ Add a Residual building block"""
 #    First convolution 
     first_convolution = 'conv{}_{}'.format(layer_nb,conv_nb)
     first_normalization = 'bn_{}_{}'.format(layer_nb,conv_nb)
@@ -174,15 +163,16 @@ def building_block(graph, layer_nb, conv_nb, input_name, nb_filters):
 
 
 
-#%% ResNet-like 
-"""34-layer ResNet with skip connections 
+#%% ResNet
+"""34-layer Residual Network with skip connections 
 
     http://arxiv.org/abs/1512.03385
 """
-print 'Building model'
-nb_filters = 8
+print 'Building graph model...'
+start_time = time.time()
 
 graph = Graph()
+#-------------------------- Layer Group 1 -------------------------------------
 graph.add_input(name='input', input_shape=(3,imsize,imsize))   
 graph.add_node(Convolution2D(nb_filter=nb_filters, nb_row=7, nb_col=7,
                              input_shape=(3,imsize,imsize),
@@ -306,7 +296,7 @@ graph, output_name = building_block(graph, layer_nb=5, conv_nb=3,
 graph, output_name = building_block(graph, layer_nb=5, conv_nb=5,
                                     input_name=output_name, 
                                     nb_filters=nb_filters*8)
-# Output shape = (128,7,7)
+# Output shape = (None,64,7,7)
                       
 graph.add_node(AveragePooling2D(pool_size=(3,3), strides=(2,2),
                                 border_mode='same'),
@@ -319,14 +309,16 @@ graph.add_output(name='output', input='dense')
 sgd = SGD(lr=0.1, decay=1e-4, momentum=0.9)
 graph.compile(optimizer=sgd, loss={'output':'binary_crossentropy'})
 
-
+print "Took %.0f seconds" % (time.time() - start_time)
 #%% Fit model
 graph.fit({'input': tensor, 'output': train_df.iloc[:,label_start:].values}, 
-          batch_size=64, nb_epoch=number_of_epochs, validation_split=0.1,
+          batch_size=mini_batch_size, nb_epoch=number_of_epochs,
+          validation_split=0.1,
 #          validation_data={'input': tensor[test_ind],
 #                            'output': train_df.iloc[test_ind,label_start:].values},
           shuffle=True,
-          callbacks=[TensorBoard('/home/rory/logs')],
+          callbacks=[TensorBoard('/home/rory/logs/2'),
+                     LearningRateScheduler(lr_schedule)],
           verbose=1)
 
 #%% Compute mean_f1_score
