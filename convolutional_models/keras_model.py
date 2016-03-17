@@ -11,48 +11,32 @@ from data_preparation.helper_functions import mean_f1_score, resnet_image_proces
 from data_preparation.helper_functions import show_image_labels
 
 
-
-
 class KerasGraphModel(object):
     def __init__(self, weight_decay):
         self.weight_decay = weight_decay
+        self.graph = None
 
-
-
-    def residual_base_convolution(self, graph, layer_nb, conv_nv):
+    def base_residual_convolution(self, input_name, nb_filters, layer_nb, conv_nb):
         """Convolution2D -> BatchNormalization -> ReLU"""
         first_convolution = 'conv{}_{}'.format(layer_nb,conv_nb)
         first_normalization = 'bn_{}_{}'.format(layer_nb,conv_nb)
         first_activation = 'relu{}_{}'.format(layer_nb, conv_nb)
 
-
-        graph.add_node(Convolution2D(nb_filters, 3, 3, W_regularizer=l2(weight_decay),
+        self.graph.add_node(Convolution2D(nb_filters, 3, 3, W_regularizer=l2(self.weight_decay),
                                  border_mode='same'),
                    name=first_convolution, input=input_name)
-        graph.add_node(BatchNormalization(), name=first_normalization,
+        self.graph.add_node(BatchNormalization(), name=first_normalization,
                        input=first_convolution)
-        graph.add_node(Activation('relu'), name=first_activation,
+        self.graph.add_node(Activation('relu'), name=first_activation,
                        input=first_normalization)
 
-        return graph
-
-    def conv_building_block(self):
+    def conv_building_block(self, stride=None):
         """Convolution2D -> BatchNormalization -> ReLU"""
         def __init__(self):
             pass
 
-        first_convolution = 'conv{}_{}'.format(layer_nb,conv_nb)
-        first_normalization = 'bn_{}_{}'.format(layer_nb,conv_nb)
-        first_activation = 'relu{}_{}'.format(layer_nb, conv_nb)
-
-    #    Second convolution
-        second_convolution = 'conv{}_{}'.format(layer_nb,conv_nb+1)
-        second_normalization = 'bn_{}_{}'.format(layer_nb,conv_nb+1)
-        second_activation = 'relu{}_{}'.format(layer_nb, conv_nb+1)
-
-    #    return [first_convolution, first_normalization, first_activation,
-    #            second_convolution, second_normalization, second_activation]
-
+        self.base_residual_convolution()
+        self.base_residual_convolution()
         graph.add_node(Convolution2D(nb_filters, 3, 3, W_regularizer=l2(weight_decay),
                                  border_mode='same'),
                    name=first_convolution, input=input_name)
