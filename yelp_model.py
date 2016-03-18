@@ -1,23 +1,26 @@
-class Model:
+from convolutional_models.keras_model import KerasGraphModel
 
-    def __init__(self, nb_epochs=10, nb_images=1000, imsize=(224,224)):
+
+class Model(KerasGraphModel):
+    def __init__(self, nb_epochs=10, mini_batch_size=100, weight_decay=0.0001):
         self.nb_epochs = nb_epochs
-        self.nb_images = nb_images
-        self.imsize = imsize
-        self.save_model = False
-        self.show_plots = True
-        self.model_name = 'mar_7_0005'
-        self.csv_dir = 'data/'                        # Folder for csv files
-        # self.reload_images = False
-        self.jpg_dir = 'data/train_photos/'
-        self.models_dir = 'models/'
-        self.weight_decay = 0.01
+        self.weight_decay = weight_decay
+        self.mini_batch_size = mini_batch_size
+        self.imsize = None
+        self.nb_images = None
+        self.train_images = None
+        self.dim_order = 'th'
 
-    def train(self):
-        pass
+    def fit(self, train_images, target):
+        self.train_images = train_images
+        self.nb_images = len(train_images)
+        self.imsize = train_images[0].shape[:2]
 
-    def test(self):
+    def evaluate(self):
         pass
 
     def generate_submission(self):
+        pass
+
+    def score(self):
         pass
