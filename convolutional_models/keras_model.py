@@ -16,34 +16,48 @@ class KerasGraphModel(object):
         self.weight_decay = weight_decay
         self.graph = None
 
-    def base_residual_convolution(self, input_name, nb_filters, layer_nb, conv_nb):
-        """Convolution2D -> BatchNormalization -> ReLU"""
+    def base_residual_convolution(self, input_name, nb_filters, layer_nb, conv_nb, conv_size=(3,3), stride=None):
+        """Convolution2D -> BatchNormalization -> ReLU
+        :param conv_nb: convolution number
+        :param layer_nb: layer number
+        :param nb_filters: number of filters
+        :param input_name: name of input
+        """
         first_convolution = 'conv{}_{}'.format(layer_nb,conv_nb)
         first_normalization = 'bn_{}_{}'.format(layer_nb,conv_nb)
         first_activation = 'relu{}_{}'.format(layer_nb, conv_nb)
 
-        self.graph.add_node(Convolution2D(nb_filters, 3, 3, W_regularizer=l2(self.weight_decay),
-                                 border_mode='same'),
-                   name=first_convolution, input=input_name)
+        if stride:
+            self.graph.add_node(Convolution2D(nb_filters, conv_size[0], conv_size[1],
+                                              W_regularizer=l2(self.weight_decay),
+                                              subsample=stride, border_mode='same'),
+                       name=first_convolution, input=input_name)
+        else:
+             self.graph.add_node(Convolution2D(nb_filters, conv_size[0], conv_size[1],
+                                               W_regularizer=l2(self.weight_decay),
+                                               border_mode='same'),
+                       name=first_convolution, input=input_name)
+
         self.graph.add_node(BatchNormalization(), name=first_normalization,
                        input=first_convolution)
         self.graph.add_node(Activation('relu'), name=first_activation,
                        input=first_normalization)
 
-    def conv_building_block(self, stride=None):
-        """Convolution2D -> BatchNormalization -> ReLU"""
-        def __init__(self):
-            pass
+    def conv_building_block(self, input_name, nb_filters, layer_nb, conv_nb, conv_size, stride=None):
+        """Convolution2D -> BatchNormalization -> ReLU
+        :param stride: Integer
+        """
+        if stride:
+            self.base_residual_convolution(input_name=input_name, nb_filters=nb_filters,
+                                           layer_nb=layer_nb, conv_nb=conv_nb, stride=(2,2))
+            self.base_residual_convolution(input_name=input_name, nb_filters=nb_filters,
+                                           layer_nb=layer_nb, conv_nb=conv_nb)
+            else:
+                self.base_residual_convolution(input_name=input_name, nb_filters=nb_filters,
+                                               layer_nb=layer_nb, conv_nb=conv_nb)
+                self.base_residual_convolution(input_name=input_name, nb_filters=nb_filters,
+                                               layer_nb=layer_nb, conv_nb=conv_nb)
 
-        self.base_residual_convolution()
-        self.base_residual_convolution()
-        graph.add_node(Convolution2D(nb_filters, 3, 3, W_regularizer=l2(weight_decay),
-                                 border_mode='same'),
-                   name=first_convolution, input=input_name)
-        graph.add_node(BatchNormalization(), name=first_normalization,
-                       input=first_convolution)
-        graph.add_node(Activation('relu'), name=first_activation,
-                       input=first_normalization)
 
     def graph_building_block(self, graph, layer_nb, conv_nb, input_name, nb_filters):
         """ Add a Residual building block"""
