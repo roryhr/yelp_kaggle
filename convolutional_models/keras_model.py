@@ -11,90 +11,89 @@ from data_preparation.helper_functions import mean_f1_score, resnet_image_proces
 from data_preparation.helper_functions import show_image_labels
 
 
-class KerasGraphModel(object):
+class BaseKerasModel(object):
+    def __init__(self):
+        pass
+
+    def save_model(self):
+        pass
+
+    def evaluate(self, X_val, y_val):
+        """Calculate the Mean F1 Score
+
+        :param X_val: training hold out data
+        :param y_val: target from hold out data
+
+                            Mean F1 Score
+        Sample submission   0.36633
+        Random submission   0.43468
+        Benchmark           0.64590
+        Leader (1/17)       0.81090
+        """
+        # Threshold at 0.5 and convert to 0 or 1
+        predictions = (self.predict({'input':X_val})['output'] > .5)*1
+
+    def save_model(self):
+        # Save model as JSON
+        json_string = model.to_json()
+        open(models_dir + model_name + '.json', 'w').write(json_string)
+        model.save_weights(models_dir + model_name + '.h5')  # requires h5py
+
+
+class KerasGraphModel(BaseKerasModel):
     def __init__(self, weight_decay):
+        super(KerasGraphModel, self).__init__()
         self.weight_decay = weight_decay
         self.graph = None
 
-    def base_residual_convolution(self, input_name, nb_filters, layer_nb, conv_nb, conv_size=(3,3), stride=None):
+    def base_convolution(self, input_name, nb_filters, layer_nb, conv_nb,
+                         conv_shape=(3, 3), stride=None,
+                         relu_activation=True, **kwargs):
         """Convolution2D -> BatchNormalization -> ReLU
+
         :param conv_nb: convolution number
         :param layer_nb: layer number
         :param nb_filters: number of filters
         :param input_name: name of input
         """
-        first_convolution = 'conv{}_{}'.format(layer_nb,conv_nb)
-        first_normalization = 'bn_{}_{}'.format(layer_nb,conv_nb)
-        first_activation = 'relu{}_{}'.format(layer_nb, conv_nb)
+        convolution = 'conv{}_{}'.format(layer_nb, conv_nb)
+        normalization = 'bn_{}_{}'.format(layer_nb, conv_nb)
+        activation = 'relu{}_{}'.format(layer_nb, conv_nb)
 
-        if stride:
-            self.graph.add_node(Convolution2D(nb_filters, conv_size[0], conv_size[1],
-                                              W_regularizer=l2(self.weight_decay),
-                                              subsample=stride, border_mode='same'),
-                       name=first_convolution, input=input_name)
+        self.graph.add_node(Convolution2D(nb_filter=nb_filters, nb_row=conv_shape[0],
+                                          nb_col=conv_shape[1],
+                                          W_regularizer=l2(self.weight_decay),
+                                          subsample=stride,
+                                          border_mode='same', **kwargs),
+                   name=convolution, input=input_name)
+
+        self.graph.add_node(BatchNormalization(), name=normalization, input=convolution)
+
+        if relu_activation:
+            self.graph.add_node(Activation('relu'), name=activation, input=normalization)
+            return activation
         else:
-             self.graph.add_node(Convolution2D(nb_filters, conv_size[0], conv_size[1],
-                                               W_regularizer=l2(self.weight_decay),
-                                               border_mode='same'),
-                       name=first_convolution, input=input_name)
+            return normalization
 
-        self.graph.add_node(BatchNormalization(), name=first_normalization,
-                       input=first_convolution)
-        self.graph.add_node(Activation('relu'), name=first_activation,
-                       input=first_normalization)
-
-    def conv_building_block(self, input_name, nb_filters, layer_nb, conv_nb, conv_size, stride=None):
-        """Convolution2D -> BatchNormalization -> ReLU
-        :param stride: Integer
-        """
-        if stride:
-            self.base_residual_convolution(input_name=input_name, nb_filters=nb_filters,
-                                           layer_nb=layer_nb, conv_nb=conv_nb, stride=(2,2))
-            self.base_residual_convolution(input_name=input_name, nb_filters=nb_filters,
-                                           layer_nb=layer_nb, conv_nb=conv_nb)
-            else:
-                self.base_residual_convolution(input_name=input_name, nb_filters=nb_filters,
-                                               layer_nb=layer_nb, conv_nb=conv_nb)
-                self.base_residual_convolution(input_name=input_name, nb_filters=nb_filters,
-                                               layer_nb=layer_nb, conv_nb=conv_nb)
-
-
-    def graph_building_block(self, graph, layer_nb, conv_nb, input_name, nb_filters):
+    def residual_block(self, layer_nb, conv_nb, input_name, nb_filters):
         """ Add a Residual building block"""
-    #    First convolution
-        first_convolution = 'conv{}_{}'.format(layer_nb,conv_nb)
-        first_normalization = 'bn_{}_{}'.format(layer_nb,conv_nb)
-        first_activation = 'relu{}_{}'.format(layer_nb, conv_nb)
 
     #    Second convolution
-        second_convolution = 'conv{}_{}'.format(layer_nb,conv_nb+1)
-        second_normalization = 'bn_{}_{}'.format(layer_nb,conv_nb+1)
         second_activation = 'relu{}_{}'.format(layer_nb, conv_nb+1)
 
-    #    return [first_convolution, first_normalization, first_activation,
-    #            second_convolution, second_normalization, second_activation]
-
-        graph.add_node(Convolution2D(nb_filters, 3, 3, W_regularizer=l2(weight_decay),
-                                 border_mode='same'),
-                   name=first_convolution, input=input_name)
-        graph.add_node(BatchNormalization(), name=first_normalization,
-                       input=first_convolution)
-        graph.add_node(Activation('relu'), name=first_activation,
-                       input=first_normalization)
-
+    #    First convolution
+        output_name = self.base_convolution(input_name=input_name, nb_filters=nb_filters,
+                                            layer_nb=layer_nb, conv_nb=conv_nb)
     #    Second Convolution
-        graph.add_node(Convolution2D(nb_filters, 3, 3, W_regularizer=l2(weight_decay),
-                                     border_mode='same'),
-                       name=second_convolution, input=first_activation)
-        graph.add_node(BatchNormalization(), name=second_normalization,
-                       input=second_convolution)
+        output_name = self.base_convolution(input_name=output_name, nb_filters=nb_filters,
+                                            layer_nb=layer_nb, conv_nb=conv_nb+1,
+                                            relu_activation=False)
+
         graph.add_node(Activation('relu'), name=second_activation,
-                       inputs=[input_name, second_normalization],
+                       inputs=[input_name, output_name],
                        merge_mode='sum')
 
-        return graph, second_activation
-
-
+        return second_activation
 
     def build_residual_network(self):
         """34-layer Residual Network with skip connections
@@ -105,11 +104,11 @@ class KerasGraphModel(object):
         graph = Graph()
         #-------------------------- Layer Group 1 -------------------------------------
         graph.add_input(name='input', input_shape=(3,imsize,imsize))
-        graph.add_node(Convolution2D(nb_filter=nb_filters, nb_row=7, nb_col=7,
-                                     input_shape=(3,imsize,imsize),
-                                     border_mode='same',
-                                     subsample=(2,2),
-                                     dim_ordering='th',
+        self.base_convolution(nb_filter=nb_filters, conv_shape=(7, 7),
+                              input_shape=(3,imsize,imsize),
+                              border_mode='same',
+                              subsample=(2,2),
+                              dim_ordering='th',
                                      W_regularizer=l2(weight_decay)),
                                      name='conv1', input='input')
         # Output shape = (None,16,112,112)
@@ -250,21 +249,6 @@ class KerasGraphModel(object):
                              LearningRateScheduler(lr_schedule)],
                   verbose=1)
 
-    def compute mean_f1_score(self):
-        ''' Calculate the Mean F1 Score
-
-                                Mean F1 Score
-            Sample submission   0.36633
-            Random submission   0.43468
-            Benchmark           0.64590
-            Leader (1/17)       0.81090
-        '''
-        X_val, y_val, _ = self.graph.validation_data
-        # Threshold at 0.5 and convert to 0 or 1
-            def predict(self):
-                predictions = (self.graph.predict({'input':X_val})['output'] > .5)*1
-
-
 
 class KerasConvolutionModel(KerasGraphModel):
     def __init__(self, nb_filters=10, nb_epochs=10):
@@ -282,13 +266,6 @@ class KerasConvolutionModel(KerasGraphModel):
         jpg_dir = 'data/train_photos/'
         models_dir = 'models/'
         weight_decay = 0.0001
-
-
-    #%% Save model as JSON
-    def save_model():
-        json_string = model.to_json()
-        open(models_dir + model_name + '.json', 'w').write(json_string)
-        model.save_weights(models_dir + model_name + '.h5')  # requires h5py
 
     #%% Plot a few images to get a feel of how I did
     def show_plots(self, nb_plots):
