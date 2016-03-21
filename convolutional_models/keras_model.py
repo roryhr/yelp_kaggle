@@ -250,8 +250,9 @@ class KerasGraphModel(BaseKerasModel):
                   verbose=1)
 
 
-class KerasConvolutionModel(KerasGraphModel):
+class KerasSequentialnModel(BaseKerasModel):
     def __init__(self, nb_filters=10, nb_epochs=10):
+        super(KerasSequentialnModel, self).__init__()
         self.nb_filters = nb_filters
         self.nb_epochs = nb_epochs
         mini_batch_size = 100
