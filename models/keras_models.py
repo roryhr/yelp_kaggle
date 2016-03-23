@@ -38,7 +38,7 @@ class BaseKerasModel(object):
 
 
 class KerasGraphModel(BaseKerasModel):
-    def __init__(self, weight_decay):
+    def __init__(self, weight_decay=0.0001):
         super(KerasGraphModel, self).__init__()
         self.weight_decay = weight_decay
         self.graph = None
@@ -84,6 +84,8 @@ class KerasGraphModel(BaseKerasModel):
 
         Input:
         input_name: name of input node, string
+        :type nb_filters: int
+        :type input_name: str
 
         Output:
         output_name: name of output node, string
@@ -114,7 +116,7 @@ class KerasGraphModel(BaseKerasModel):
         return second_activation, nb_filters
 
 
-    def build_residual_network(self, first_conv_shape=(7,7), nb_filters=8):
+    def build_residual_network(self, initial_nb_filters=4, first_conv_shape=(7,7), nb_filters=8):
         """34-layer Residual Network with skip connections
 
         Reference: http://arxiv.org/abs/1512.03385
@@ -124,12 +126,12 @@ class KerasGraphModel(BaseKerasModel):
         # -------------------------- Layer Group 1 ----------------------------
         graph.add_input(name='input', input_shape=(3,imsize,imsize))
         output_name, nb_filters = self.base_convolution(input='input',
-                                                        subsample=(2,2),
-                                                        nb_filter=nb_filters,
+                                                        stride=(2,2),
+                                                        nb_filter=initial_nb_filters,
                                                         conv_shape=first_conv_shape,
-                              input_shape=(3,imsize,imsize),
-                              border_mode='same',
-                              dim_ordering='th')
+                                                        input_shape=(3,imsize,imsize),
+                                                        border_mode='same',
+                                                        dim_ordering='th')
         # Output shape = (None,16,112,112)
         self.graph.add_node(MaxPooling2D(pool_size=(3,3), strides=(2,2),
                                          border_mode='same'),
