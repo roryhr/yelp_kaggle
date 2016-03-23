@@ -23,15 +23,15 @@ from joblib import Parallel, delayed
 
 #%% Configuration 
 nb_filters = 10
-number_of_epochs = 15
-mini_batch_size = 100
-n_images = 20000
+number_of_epochs = 5
+mini_batch_size = 20
+n_images = 2000
 imsize   = 224  # Square images
 save_model = False
 show_plots = False
 model_name = 'mar_7_0005'
 csv_dir = 'data/'                        # Folder for csv files    
-process_images = False 
+process_images = True
 photo_cache = 'data/photo_cache.pkl'
 jpg_dir = 'data/train_photos/'
 models_dir = 'models/'
@@ -310,6 +310,7 @@ sgd = SGD(lr=0.1, decay=1e-4, momentum=0.9)
 graph.compile(optimizer=sgd, loss={'output':'binary_crossentropy'})
 
 print "Took %.0f seconds" % (time.time() - start_time)
+
 #%% Fit model
 graph.fit({'input': tensor, 'output': train_df.iloc[:,label_start:].values}, 
           batch_size=mini_batch_size, nb_epoch=number_of_epochs,

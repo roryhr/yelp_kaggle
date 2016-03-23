@@ -4,6 +4,7 @@
 
 # Temp Files
 *.py~
+.ipynb_checkpoints
 
 # Data
 *.tgz
@@ -18,4 +19,8 @@ test_photos
 
 # Folders
 *.idea
+<<<<<<< HEAD
 .ipynb_checkpoints
+=======
+submissions
+>>>>>>> oo_refactor

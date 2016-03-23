@@ -1,6 +1,6 @@
 import glob
 # from joblib import Parallel, delayed
-from helper_functions import load_and_preprocess
+from data_preparation.helper_functions import load_and_preprocess
 import cPickle as pickle
 import time
 

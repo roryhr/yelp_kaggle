@@ -1,24 +1,23 @@
 #import matplotlib.image as mpimg
-import numpy as np      # 1.10.1
-import pandas as pd
 import glob
 import random
 import time
-from sklearn.cross_validation import train_test_split
 
+import numpy as np      # 1.10.1
+import pandas as pd
+import tables
+from joblib import Parallel, delayed
 from keras.callbacks import EarlyStopping
-from keras.regularizers import l2
+from keras.layers.convolutional import Convolution2D, MaxPooling2D
+from keras.layers.core import Dense, Activation, Flatten
 from keras.layers.normalization import BatchNormalization
 from keras.models import Sequential
-from keras.layers.core import Dense, Activation, Flatten
-from keras.layers.convolutional import Convolution2D, MaxPooling2D
 from keras.optimizers import SGD
+from keras.regularizers import l2
+from sklearn.cross_validation import train_test_split
 
-from helper_functions import load_and_preprocess, mean_f1_score
-from helper_functions import show_image_labels
-
-from joblib import Parallel, delayed
-import tables
+from data_preparation.helper_functions import load_and_preprocess, mean_f1_score
+from data_preparation.helper_functions import show_image_labels
 
 # THEANO_FLAGS='floatX=float32,blas.ldflags=,OMP_NUM_THREADS=2,openmp=True' python cnn_training.py
 
