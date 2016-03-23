@@ -1,4 +1,4 @@
-from convolutional_models.keras_model import KerasGraphModel
+from models.keras_models import KerasGraphModel
 
 
 class Model(KerasGraphModel):
