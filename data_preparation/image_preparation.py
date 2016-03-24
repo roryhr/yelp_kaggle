@@ -9,37 +9,31 @@ import time
 n_images = None     # Read and process all test images
 imsize   = 64       # Square images
 #n_jobs = 3
-test_jpg_dir = 'data/train_photos/'
 
-save_file_name = 'data/all_train_photos'
 #---------------------------------------------------------
 
+class ImageLoader(object):
+    def __init__(self, save_file_name='data/all_train_photos',
+                 photo_dir='data/train_photos/'):
+        self.save_file_name = save_file_name
+        self.photo_dir = photo_dir
 
-im_files = glob.glob(test_jpg_dir + '*.jpg')
+    def load_images(self):
+        #%% Read in the images
+        im_files = glob.glob(test_jpg_dir + '*.jpg')
+        if n_images:
+            im_selection = im_files[:n_images]
+        else:
+            im_selection = im_files
+            n_images = len(im_selection)
 
+        #test_images = Parallel(n_jobs=n_jobs)(delayed(load_and_preprocess)(im_file) for im_file in im_selection)
+        test_images = [load_and_preprocess(im_file) for im_file in im_selection]
 
-#%% Read in the images
-if n_images:
-    im_selection = im_files[:n_images]
-else:
-    im_selection = im_files
-    n_images = len(im_selection)
+    def save_images_to_pickle(self):
+        #%% Save the images and file names
+        with open(save_file_name+'_images' + '.pkl', 'wb') as out_file:
+           pickle.dump(test_images, out_file, 2)
 
-print 'Read and preprocessing {} images'.format(n_images)
-print "Done in about %.0f minutes" % (n_images*0.0072/60)  # 7.2 ms/image
-#print 'n_jobs = {}'.format(n_jobs)
-start_time = time.time()
-
-#test_images = Parallel(n_jobs=n_jobs)(delayed(load_and_preprocess)(im_file) for im_file in im_selection)
-test_images = [load_and_preprocess(im_file) for im_file in im_selection]
-
-elapsed_time = time.time() - start_time
-print "Took %.1f minutes and %.1f ms per image" % (elapsed_time/60,
-                                                   1000*elapsed_time/n_images)
-
-#%% Save the images and file names
-with open(save_file_name+'_images' + '.pkl', 'wb') as out_file:
-   pickle.dump(test_images, out_file, 2)
-
-with open(save_file_name+'_im_files'+'.pkl', 'wb') as out_file:
-   pickle.dump(im_selection, out_file, 2)
+        with open(save_file_name+'_im_files'+'.pkl', 'wb') as out_file:
+           pickle.dump(im_selection, out_file, 2)
