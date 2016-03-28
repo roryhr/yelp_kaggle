@@ -1,10 +1,12 @@
-# Multi-Lable Residual Network
+# Multi-label classification network
 
-I wanted to show how good software development practices can be applied to a
-state of the art convolutional model. Typically, these models are defined in
-ugly config files and the business logic is hard to find.
+This repository contains the code I used for the
+[Yelp Kaggle competition](https://www.kaggle.com/c/yelp-restaurant-photo-classification).
 
-This model uses the simple scikit-learn API and provides a clean interface
-that lets the user(me) clearly see what choices are being made to construct
-the model. For example, the image processing options and output layer activation
-are important and shouldn't be hidden deep a script.
+My primary motivation is to use the competition as a learning opportunity. I've developed an object-oriented model model which exposes the familiar scikit-learn API. The data munging potion of the code is unit tested -- why not?
+
+Beyond the application of standard development practices to data science, I've implemented the [latest and greatest convolutional network](http://arxiv.org/abs/1512.03385) in Keras.
+
+## Running the network
+
+The competition involves labeling each image from nine possible labels. If we were to one-hot encode this that's `2**9 = 512` classes, which is not far from the 1000 classes in the ImageNet competition. Their deepest network required 11 billion FLOPs and requires many GPUs to train.
