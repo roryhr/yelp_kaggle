@@ -10,6 +10,7 @@ from keras.optimizers import SGD
 from keras.regularizers import l2
 
 class BaseKerasModel(object):
+
     def __init__(self, nb_epochs=10, mini_batch_size=100):
         self.nb_epochs = nb_epochs
         self.mini_batch_size = mini_batch_size
@@ -63,7 +64,7 @@ class KerasGraphModel(BaseKerasModel):
         :param input_name: name of input
         """
         convolution = 'conv{}_{}'.format(layer_nb, conv_nb)
-        normalization = 'bn_{}_{}'.format(layer_nb, conv_nb)
+        normalization = 'bn{}_{}'.format(layer_nb, conv_nb)
         activation = 'relu{}_{}'.format(layer_nb, conv_nb)
 
         self.graph.add_node(Convolution2D(nb_filter=nb_filters,
@@ -83,7 +84,7 @@ class KerasGraphModel(BaseKerasModel):
         else:
             return normalization
 
-    def residual_block(self, input_name, nb_filters, layer_nb, conv_nb, stride=(1,1)):
+    def residual_block(self, input_name, nb_filters, layer_nb, conv_nb, first_stride=(1, 1)):
         """Add a residual building block
 
         A residual block consists of 2 base convolutions with a short/identity
@@ -97,30 +98,45 @@ class KerasGraphModel(BaseKerasModel):
         Output:
         output_name: name of output node, string
         """
-    #    First convolution
-        output_name = self.base_convolution(input_name=input_name, nb_filters=nb_filters,
-                                            layer_nb=layer_nb, conv_nb=conv_nb,
-                                            stride=stride,
-                                            relu_activation=True)
-        # TODO: Add 1x1, nb_filter/2 short-circuit connection for stride of 2
-        # Double the number of filters if we take a stride of 2
-        if stride == (2,2):
-            nb_filters *= 2
+
+        # First convolution
+        first_relu = self.base_convolution(input_name=input_name, nb_filters=nb_filters,
+                                           layer_nb=layer_nb, conv_nb=conv_nb,
+                                           stride=first_stride)
+        output_shape = self.graph.nodes[first_relu].output_shape
 
         # Second Convolution, with Batch Normalization, without ReLU activation
-        output_name = self.base_convolution(input_name=output_name, nb_filters=nb_filters,
-                                            layer_nb=layer_nb, conv_nb=conv_nb+1,
-                                            relu_activation=False)
+        second_bn = self.base_convolution(input_name=first_relu, nb_filters=nb_filters,
+                                          layer_nb=layer_nb, conv_nb=conv_nb+1,
+                                          stride=(1, 1),
+                                          relu_activation=False)
 
-        second_activation = 'relu{}_{}'.format(layer_nb, conv_nb+1)
-        self.graph.add_node(Activation('relu'), name=second_activation,
-                            inputs=[input_name, output_name],
+        # Add the short convolution, with Batch Normalization
+        if first_stride == (2, 2):
+            short_conv = 'short{}_{}'.format(layer_nb, conv_nb)
+            self.graph.add_node(Convolution2D(nb_filter=nb_filters//4,
+                                              nb_row=1,
+                                              nb_col=1,
+                                              W_regularizer=l2(self.weight_decay),
+                                              border_mode='same'),
+                                name=short_conv, input=input_name)
+
+            short_bn = 'short_bn{}_{}'.format(layer_nb, conv_nb+1)
+            self.graph.add_node(BatchNormalization(), name=short_bn, input=short_conv)
+            short_reshape = 'short_reshape{}_{}'.format(layer_nb, conv_nb)
+            self.graph.add_node(Reshape(output_shape[1:]), name=short_reshape, input=short_bn)
+
+            input_name = short_reshape       # Overwrite input_name with reshaped short circuit
+
+        output_activation = 'relu{}_{}'.format(layer_nb, conv_nb+1)
+        self.graph.add_node(Activation('relu'), name=output_activation,
+                            inputs=[second_bn, input_name],
                             merge_mode='sum')
 
-        return second_activation, nb_filters
+        return output_activation, nb_filters
 
 
-    def build_residual_network(self, initial_nb_filters=4, first_conv_shape=(7,7)):
+    def build_residual_network(self, initial_nb_filters=64, first_conv_shape=(7, 7)):
         """34-layer Residual Network with skip connections
 
             layer name      output size     18-layer        34-layer
@@ -157,42 +173,42 @@ class KerasGraphModel(BaseKerasModel):
         output_name, nb_filters = self.residual_block(input_name='pool1',
                                                       nb_filters=initial_nb_filters,
                                                       layer_nb=2, conv_nb=1)
-        for i in xrange(1, 3):
+        for i in range(1, 3):
             output_name, nb_filters = self.residual_block(input_name=output_name,
                                                           nb_filters=nb_filters,
                                                           layer_nb=2, conv_nb=(2*i+1))
         # Output shape = (None,16,56,56)
         # -------------------------- Layer Group 3 ----------------------------
         output_name, nb_filters = self.residual_block(input_name=output_name,
-                                                      nb_filters=nb_filters,
+                                                      nb_filters=initial_nb_filters*2,
                                                       layer_nb=3, conv_nb=1,
-                                                      stride=(2,2))  # nb_filters *= 2
-        for i in xrange(1, 4):
+                                                      first_stride=(2, 2))  # nb_filters *= 2
+        for i in range(1, 4):
             output_name, nb_filters = self.residual_block(input_name=output_name,
                                                           nb_filters=nb_filters,
                                                           layer_nb=3, conv_nb=(2*i+1))
         # -------------------------- Layer Group 4 ----------------------------
         output_name, nb_filters = self.residual_block(input_name=output_name,
-                                                      nb_filters=nb_filters,
+                                                      nb_filters=initial_nb_filters*4,
                                                       layer_nb=4, conv_nb=1,
-                                                      stride=(2,2))  # nb_filters *= 2
-        for i in xrange(1, 6):
+                                                      first_stride=(2, 2))
+        for i in range(1, 6):
             output_name, nb_filters = self.residual_block(input_name=output_name,
                                                           nb_filters=nb_filters,
                                                           layer_nb=4, conv_nb=(2*i+1))
         # Output shape = (256,14,14)
         # -------------------------- Layer Group 5 ----------------------------
         output_name, nb_filters = self.residual_block(input_name=output_name,
-                                                      nb_filters=nb_filters,
-                                                      layer_nb=4, conv_nb=1,
-                                                      stride=(2,2))  # nb_filters *= 2
-        for i in xrange(1, 3):
+                                                      nb_filters=initial_nb_filters*8,
+                                                      layer_nb=5, conv_nb=1,
+                                                      first_stride=(2, 2))
+        for i in range(1, 3):
             output_name, nb_filters = self.residual_block(input_name=output_name,
                                                           nb_filters=nb_filters,
                                                           layer_nb=5, conv_nb=(2*i+1))
         # Output shape = (None,64,7,7)
 
-        self.graph.add_node(AveragePooling2D(pool_size=(3,3), strides=(2,2),
+        self.graph.add_node(AveragePooling2D(pool_size=(7, 7),
                                              border_mode='same'),
                             name='pool2', input=output_name)
         self.graph.add_node(Flatten(), name='flatten', input='pool2')
