@@ -16,8 +16,8 @@ from keras.optimizers import SGD
 from keras.regularizers import l2
 from sklearn.cross_validation import train_test_split
 
-from data_preparation.helper_functions import load_and_preprocess, mean_f1_score
-from data_preparation.helper_functions import show_image_labels
+from old_scripts.helper_functions import load_and_preprocess, mean_f1_score
+from old_scripts.helper_functions import show_image_labels
 
 # THEANO_FLAGS='floatX=float32,blas.ldflags=,OMP_NUM_THREADS=2,openmp=True' python cnn_training.py
 
