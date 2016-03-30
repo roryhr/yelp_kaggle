@@ -94,7 +94,7 @@ if __name__ == '__main__':
     p = Path('../data/train_photos')
     im_files = list(p.glob('*[0-9].jpg'))
     misc.imshow(misc.imread(im_files[0]))
-
+    # TODO: get files from im_files[0].stem = '57459' -> integers
 
     image_loader = ImageLoader()
     images = image_loader.load_images(im_files)
