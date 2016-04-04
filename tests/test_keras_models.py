@@ -1,6 +1,7 @@
 import unittest
-from models.keras_models import KerasGraphModel
-from keras.models import Graph
+
+from keras_models import KerasGraphModel
+
 
 class TestBaseConvolution(unittest.TestCase):
 

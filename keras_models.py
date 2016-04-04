@@ -9,12 +9,13 @@ from keras.models import model_from_json
 from keras.optimizers import SGD
 from keras.regularizers import l2
 
+
 class BaseKerasModel(object):
     """ Base class for Keras Sequential and Graph models."""
-    def __init__(self, nb_epochs=10, mini_batch_size=100, model=None):
+
+    def __init__(self, nb_epochs=10, mini_batch_size=100):
         self.nb_epochs = nb_epochs
         self.mini_batch_size = mini_batch_size
-        self.model = model
 
     def evaluate(self, X_val, y_val):
         """ Calculate the Mean F1 Score
@@ -29,7 +30,7 @@ class BaseKerasModel(object):
         Leader (1/17)       0.81090
         """
         # Threshold at 0.5 and convert to 0 or 1
-        predictions = (self.predict({'input':X_val})['output'] > .5)*1
+        predictions = (self.predict({'input': X_val})['output'] > .5)*1
         return predictions
 
     @staticmethod
@@ -42,23 +43,39 @@ class BaseKerasModel(object):
             lr = 0.001
         return lr
 
-    def load_model(self):
-        """Load model from JSON and weights from HDF5"""
-        self.model = model_from_json(open(models_dir+model_name+'.json').read())
-        self.model.load_weights(models_dir+model_name+'.h5')
+    @staticmethod
+    def _load_model(model_stem):
+        """ Load model from JSON and weights from HDF5."""
 
-    def save(self, model_name):
-        """Save model to model_name.json and model_name.h5"""
+        model = model_from_json(open(model_stem + '.json').read())
+        model.load_weights(model_stem + '.h5')
+        return model
+
+    @staticmethod
+    def _save(model, model_stem):
+        """ Save model to model_name.json and model_name.h5"""
+
         json_string = model.to_json()
-        open(self.models_dir + model_name + '.json', 'w').write(json_string)
-        self.model.save_weights(self.models_dir + model_name + '.h5')
+        open(model_stem + '.json', 'w').write(json_string)
+        model.save_weights(model_stem + '.h5')
+
+    def predict(self):
+        pass
 
 
 class KerasGraphModel(BaseKerasModel):
-    def __init__(self, weight_decay=0.0001, nb_epochs=10, mini_batch_size=100):
-        super(KerasGraphModel, self).__init__(nb_epochs, mini_batch_size)
+    """ Keras Graph model.
+
+    model = KerasGraphModel()
+    model.load('saved_models/my_model')
+    model.fit()
+    model.save('saved_models/omg_this_new_model_rocks')
+    """
+
+    def __init__(self, weight_decay=0.0001, nb_epochs=10, mini_batch_size=100, graph=None):
         self.weight_decay = weight_decay
-        self.graph = Graph()
+        super().__init__(nb_epochs, mini_batch_size)
+        self.graph = graph
 
     def base_convolution(self, input_name, nb_filters, layer_nb, conv_nb,
                          conv_shape=(3,3),
@@ -148,7 +165,7 @@ class KerasGraphModel(BaseKerasModel):
     def build_residual_network(self, nb_blocks=[1,3,4,6,3],
                                initial_nb_filters=64,
                                first_conv_shape=(7, 7)):
-        """ Construct a residual convolutional network model.
+        """Construct a residual convolutional network graph from scratch.
 
         Parameters
         ----------
@@ -181,18 +198,19 @@ class KerasGraphModel(BaseKerasModel):
         Reference: http://arxiv.org/abs/1512.03385
         """
         imsize = 224
+        self.graph = Graph()
         # -------------------------- Layer Group 1 ----------------------------
-        self.graph.add_input(name='input', input_shape=(3,imsize,imsize))
+        self.graph.add_input(name='input', input_shape=(3, imsize, imsize))
         output_name = self.base_convolution(input_name='input',
                                             nb_filters=initial_nb_filters,
                                             layer_nb=1,
                                             conv_nb=1,
-                                            stride=(2,2),
+                                            stride=(2, 2),
                                             conv_shape=first_conv_shape,
-                                            input_shape=(3,imsize,imsize),
+                                            input_shape=(3, imsize, imsize),
                                             dim_ordering='th')
         # Output shape = (None,16,112,112)
-        self.graph.add_node(MaxPooling2D(pool_size=(3,3), strides=(2,2),
+        self.graph.add_node(MaxPooling2D(pool_size=(3, 3), strides=(2, 2),
                                          border_mode='same'),
                             name='pool1', input=output_name)
         # Output shape = (None,initial_nb_filters,56,56)
@@ -258,6 +276,9 @@ class KerasGraphModel(BaseKerasModel):
                                   LearningRateScheduler(lr_schedule)],
                        verbose=1)
 
+    def load_graph(self, model_name_stem):
+        self.graph = self._load_model(model_stem=model_name_stem)
+
 
 class KerasSequentialModel(BaseKerasModel):
     def __init__(self, nb_filters=10, nb_epochs=10):
@@ -283,5 +304,5 @@ class KerasSequentialModel(BaseKerasModel):
 
 if __name__ == '__main__':
     test_model = KerasGraphModel()
-    test_model.build_residual_network()
+    test_model.load_graph('../small_test_model')
     test_model.graph.summary()
