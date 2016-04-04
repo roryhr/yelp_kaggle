@@ -1,19 +1,20 @@
 import pandas as pd
 from pathlib import Path
-import pickle
+# import pickle
 import numpy as np
 import random
 from scipy import misc
 
 CROP_SIZE = (224, 224)   # Size of final image passed into convolution network
-BATCH_SIZE = 100         # Number of images to process
-LABELS_CACHE = '../data/train_labels.pkl'
+BATCH_SIZE = 200         # Number of images to process
+LABELS_CACHE = 'data/train_labels.pkl'
 
 
 class ImageLoader(object):
+    """ A few utilities to work with csv files and images."""
     def __init__(self,
                  save_file_name='data/all_train_photos',
-                 csv_dir='../data/',
+                 csv_dir='data/',
                  photo_dir='data/train_photos/train_photos/',
                  random_horizontal_flip=False,
                  random_vertical_flip=False,
@@ -25,7 +26,7 @@ class ImageLoader(object):
         self.random_horizontal_flip = random_horizontal_flip
         self.random_vertical_flip = random_vertical_flip
         self.im_mean = im_mean
-        self.train_df = None
+        self.train_df = self.compute_target_labels()
 
     def compute_target_labels(self):
         """ Compute the target labels and save to a pickle file
@@ -33,11 +34,10 @@ class ImageLoader(object):
         photo_ids = ['1', '163', ...]
         """
 
-        # Return if the file already exists
+        # Load the pickled train_df if it exists
         if Path(LABELS_CACHE).exists():
-            print("Hey, it's already here")
-            self.train_df = pd.read_pickle(LABELS_CACHE)
-            return
+            print('Loaded training labels from cache')
+            return pd.read_pickle(LABELS_CACHE)
 
         p = Path('../data/train_photos')
         photo_ids = list(p.glob('*[0-9].jpg'))
@@ -69,12 +69,22 @@ class ImageLoader(object):
 
         # Convert label columns, 3-12, to integers
         # train_df[train_df.columns[3:]] = train_df[train_df.columns[3:]].astype('int')
+        return train_df
 
     @staticmethod
     def resnet_image_processing(file_path):
-        """ Apply image processing from MSFT's ResNet
+        """ Apply image processing as in He et al:
+        Scale augmentation, per-pixel mean subtraction, horizontal flips,
+        and color augmentation
 
+        He et al. Deep Residual Learning for Image Recognition. arXiv, 2015.
         http://arxiv.org/abs/1512.03385
+
+        K. Simonyan and A. Zisserman. Very deep convolutional networks
+        for large-scale image recognition. In ICLR, 2015.
+
+        A. Krizhevsky, I. Sutskever, and G. Hinton. Imagenet classification
+        with deep convolutional neural networks. In NIPS, 2012.
         """
 
         img = misc.imread(file_path)
@@ -94,24 +104,10 @@ class ImageLoader(object):
         return crop_img
 
     def horizontal_flip(self, value):
-        return self.random_horizontal_flip
-
-    def load_images(self, im_files):
-        """ Read in the images."""
-        # im_files = glob.glob(test_jpg_dir + '*.jpg')
-        # if n_images:
-        #     im_selection = im_files[:n_images]
-        # else:
-        #     im_selection = im_files
-        #     n_images = len(im_selection)
-        im_selection = random.sample(im_files, BATCH_SIZE)
-
-        images = [self.resnet_image_processing(im_file) for im_file in im_selection]
-
-        return images
+        pass
 
     def graph_train_generator(self, im_files):
-        """ Read in the images and yield."""
+        """ Read in the images and yield a training dict."""
         while True:
             im_selection = random.sample(im_files, BATCH_SIZE)
 
@@ -121,20 +117,12 @@ class ImageLoader(object):
             # Convert list into a tensor
             images_tensor = np.stack(images_tensor)
 
-            # Reshape tensor into theano format
+            # Reshape tensor into Theano format
             images_tensor = images_tensor.reshape(BATCH_SIZE, 3, CROP_SIZE[0], CROP_SIZE[1])
             images_tensor = images_tensor.astype('float32')
             images_tensor -= self.im_mean
 
             yield {'input': images_tensor, 'output': self.get_target_labels(im_selection)}
-
-    # def save_images_to_pickle(self):
-    #     #%% Save the images and file names
-    #     with open(save_file_name+'_images' + '.pkl', 'wb') as out_file:
-    #        pickle.dump(test_images, out_file, 2)
-    #
-    #     with open(save_file_name+'_im_files'+'.pkl', 'wb') as out_file:
-    #        pickle.dump(im_selection, out_file, 2)
 
     def get_target_labels(self, image_ids):
         """ Return target labels from a pickled DataFrame

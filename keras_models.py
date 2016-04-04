@@ -64,13 +64,7 @@ class BaseKerasModel(object):
 
 
 class KerasGraphModel(BaseKerasModel):
-    """ Keras Graph model.
-
-    model = KerasGraphModel()
-    model.load('saved_models/my_model')
-    model.fit()
-    model.save('saved_models/omg_this_new_model_rocks')
-    """
+    """ Keras Graph model and a method to create an arbitrary residual network."""
 
     def __init__(self, weight_decay=0.0001, nb_epochs=10, mini_batch_size=100, graph=None):
         self.weight_decay = weight_decay
@@ -278,28 +272,6 @@ class KerasGraphModel(BaseKerasModel):
     def load_graph(self, model_name_stem):
         self.graph = self._load_model(model_stem=model_name_stem)
 
-
-class KerasSequentialModel(BaseKerasModel):
-    def __init__(self, nb_filters=10, nb_epochs=10):
-        super(KerasSequentialnModel, self).__init__()
-        self.nb_filters = nb_filters
-        # n_images = 20000
-        # imsize   = 224  # Square images
-        # save_model = False
-        # show_plots = False
-        # model_name = 'mar_7_0005'
-        # csv_dir = 'data/'
-        # process_images = False
-        # photo_cache = 'data/photo_cache.pkl'
-        # jpg_dir = 'data/train_photos/'
-        # models_dir = 'models/'
-        # weight_decay = 0.0001
-
-    # #%% Plot a few images to get a feel of how I did
-    # def show_plots(self, nb_plots):
-    #     for i in range(nb_plots):
-    #         show_image_labels(tensor[test_ind[i]], predictions[i],
-    #                           train_df['labels'][test_ind[i]], im_mean)
 
 if __name__ == '__main__':
     test_model = KerasGraphModel()
