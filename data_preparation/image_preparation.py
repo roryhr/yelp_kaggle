@@ -6,7 +6,7 @@ import random
 from scipy import misc
 
 CROP_SIZE = (224, 224)   # Size of final image passed into convolution network
-BATCH_SIZE = 200         # Number of images to process
+BATCH_SIZE = 50         # Number of images to process
 LABELS_CACHE = 'data/train_labels.pkl'
 
 
