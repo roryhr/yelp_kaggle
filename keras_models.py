@@ -161,7 +161,6 @@ class KerasGraphModel(BaseKerasModel):
 
         return output_activation
 
-
     def build_residual_network(self, nb_blocks=[1,3,4,6,3],
                                initial_nb_filters=64,
                                first_conv_shape=(7, 7)):
