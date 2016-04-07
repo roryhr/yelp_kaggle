@@ -10,6 +10,7 @@
 *.tgz
 train_photos
 test_photos
+yelp_dataset
 *.csv
 *.gz
 *.pkl
@@ -19,8 +20,7 @@ test_photos
 
 # Folders
 *.idea
-<<<<<<< HEAD
+HEAD
 .ipynb_checkpoints
-=======
 submissions
->>>>>>> oo_refactor
+oo_refactor
