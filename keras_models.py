@@ -9,6 +9,7 @@ from keras.models import model_from_json
 from keras.optimizers import SGD
 from keras.regularizers import l2
 
+import pandas as pd
 
 class BaseKerasModel(object):
     """ Base class for Keras Sequential and Graph models."""
@@ -59,8 +60,16 @@ class BaseKerasModel(object):
         open(model_stem + '.json', 'w').write(json_string)
         model.save_weights(model_stem + '.h5')
 
-    def predict(self):
-        pass
+    @staticmethod
+    def generate_labels_df(all_predictions):
+        df = pd.DataFrame(all_predictions)
+        df2 = pd.DataFrame(index=df.index)
+        df2['predicted_labels'] = ''
+
+        for i in range(8):
+            df2[df[i] == 1] = df2[df[i] == 1] + str(i) + ' '
+
+        return df2
 
 
 class KerasGraphModel(BaseKerasModel):
@@ -258,20 +267,38 @@ class KerasGraphModel(BaseKerasModel):
         sgd = SGD(lr=0.1, decay=1e-4, momentum=0.9)
         self.graph.compile(optimizer=sgd, loss={'output': 'binary_crossentropy'})
 
-    def fit(self, input_tensor, target, validation_split=0.1):
-        self.graph.fit({'input': input_tensor, 'output': train_df.iloc[:,label_start:].values},
-                       batch_size=mini_batch_size, nb_epoch=number_of_epochs,
-                       validation_split=validation_split,
-                       # validation_data={'input': tensor[test_ind],
-                       #                  'output': train_df.iloc[test_ind,label_start:].values},
-                       shuffle=True,
-                       callbacks=[TensorBoard('/home/rory/logs/2'),
-                                  LearningRateScheduler(lr_schedule)],
-                       verbose=1)
+    # def fit(self, input_tensor, target, validation_split=0.1):
+    #     self.graph.fit({'input': input_tensor, 'output': train_df.iloc[:,label_start:].values},
+    #                    batch_size=mini_batch_size, nb_epoch=number_of_epochs,
+    #                    validation_split=validation_split,
+    #                    # validation_data={'input': tensor[test_ind],
+    #                    #                  'output': train_df.iloc[test_ind,label_start:].values},
+    #                    shuffle=True,
+    #                    callbacks=[TensorBoard('/home/rory/logs/2'),
+    #                               LearningRateScheduler(lr_schedule)],
+    #                    verbose=1)
 
     def load_graph(self, model_name_stem):
         self.graph = self._load_model(model_stem=model_name_stem)
 
+    def generate_submission(self, test_im_generator):
+        test_photo_ids = []
+        predictions = []
+        for (batch_data, batch_photo_ids) in test_im_generator:
+            predictions.append(self.graph.predict(batch_data))
+            test_photo_ids.append(batch_photo_ids)
+
+        test_df = pd.DataFrame(test_photo_ids, columns=['photo_id'])
+
+        test_df['labels'] = self.generate_labels_df(predictions)
+
+        # Column names: photo_id, business_id
+        photo_biz_ids_df = pd.read_csv(csv_dir + 'test_photo_to_biz.csv')
+
+        test_df = pd.merge(test_df, photo_biz_ids_df, on='photo_id')
+        submission_df = test_df.drop_duplicates('business_id')
+
+        return submission_df
 
 if __name__ == '__main__':
     test_model = KerasGraphModel()

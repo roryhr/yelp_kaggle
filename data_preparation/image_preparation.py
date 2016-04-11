@@ -1,3 +1,4 @@
+from itertools import zip_longest
 import pandas as pd
 from pathlib import Path
 # import pickle
@@ -6,8 +7,15 @@ import random
 from scipy import misc
 
 CROP_SIZE = (224, 224)   # Size of final image passed into convolution network
-BATCH_SIZE = 50         # Number of images to process
+#BATCH_SIZE = 1000        # Number of images to process
 LABELS_CACHE = 'data/train_labels.pkl'
+
+
+def grouper(iterable, n, fillvalue=None):
+    """Collect data into fixed-length chunks or blocks"""
+    # grouper('ABCDEFG', 3, 'x') --> ABC DEF Gxx"
+    args = [iter(iterable)] * n
+    return zip_longest(*args, fillvalue=fillvalue)
 
 
 class ImageLoader(object):
@@ -18,11 +26,13 @@ class ImageLoader(object):
                  photo_dir='data/train_photos/train_photos/',
                  random_horizontal_flip=False,
                  random_vertical_flip=False,
+                 batch_size=30,
                  im_mean=106.7):
         self.save_file_name = save_file_name
         self.csv_dir = csv_dir
         self.photo_dir = photo_dir
-
+        
+#        self.batch_size = batch_size
         self.random_horizontal_flip = random_horizontal_flip
         self.random_vertical_flip = random_vertical_flip
         self.im_mean = im_mean
@@ -106,10 +116,10 @@ class ImageLoader(object):
     def horizontal_flip(self, value):
         pass
 
-    def graph_train_generator(self, im_files):
-        """ Read in the images and yield a training dict."""
+    def graph_train_generator(self, im_files, batch_size=30):
+        """Read in the images and yield a training dict."""
         while True:
-            im_selection = random.sample(im_files, BATCH_SIZE)
+            im_selection = random.sample(im_files, batch_size)
 
             # Load images into a list
             images_tensor = [self.resnet_image_processing(im_file) for im_file in im_selection]
@@ -118,11 +128,28 @@ class ImageLoader(object):
             images_tensor = np.stack(images_tensor)
 
             # Reshape tensor into Theano format
-            images_tensor = images_tensor.reshape(BATCH_SIZE, 3, CROP_SIZE[0], CROP_SIZE[1])
+            images_tensor = images_tensor.reshape(batch_size, 3, CROP_SIZE[0], CROP_SIZE[1])
             images_tensor = images_tensor.astype('float32')
             images_tensor -= self.im_mean
 
             yield {'input': images_tensor, 'output': self.get_target_labels(im_selection)}
+
+    def test_image_generator(self, im_files, batch_size=30):
+        """Read in the test images and yield a test dict."""
+        for im_selection in grouper(im_files, batch_size):
+            # Load images into a list
+            images_tensor = [self.resnet_image_processing(im_file) for im_file in im_selection]
+            photo_ids = [int(path_id.stem) for path_id in im_selection]
+
+            # Convert list into a tensor
+            images_tensor = np.stack(images_tensor)
+
+            # Reshape tensor into Theano format
+            images_tensor = images_tensor.reshape(batch_size, 3, CROP_SIZE[0], CROP_SIZE[1])
+            images_tensor = images_tensor.astype('float32')
+            images_tensor -= self.im_mean
+
+            yield {'input': images_tensor}, photo_ids
 
     def get_target_labels(self, image_ids):
         """ Return target labels from a pickled DataFrame
