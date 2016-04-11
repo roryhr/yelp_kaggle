@@ -53,7 +53,7 @@ class BaseKerasModel(object):
         return model
 
     @staticmethod
-    def _save(model, model_stem):
+    def save_model(model, model_stem):
         """ Save model to model_name.json and model_name.h5"""
 
         json_string = model.to_json()
