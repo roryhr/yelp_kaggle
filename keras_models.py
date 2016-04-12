@@ -53,12 +53,12 @@ class BaseKerasModel(object):
         return model
 
     @staticmethod
-    def save_model(model, model_stem):
+    def save_model(model, model_stem, **kwargs):
         """ Save model to model_name.json and model_name.h5"""
 
         json_string = model.to_json()
         open(model_stem + '.json', 'w').write(json_string)
-        model.save_weights(model_stem + '.h5')
+        model.save_weights(model_stem + '.h5', **kwargs)
 
     @staticmethod
     def generate_labels_df(all_predictions):
